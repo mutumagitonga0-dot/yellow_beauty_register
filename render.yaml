@@ -1,0 +1,17 @@
+# Exported from Render on 2026-08-27T17:52:30Z
+version: "1"
+services:
+- type: web
+  name: Tunda_crates_issuance_n_tracking
+  runtime: docker
+  repo: https://github.com/mutumagitonga0-dot/tgl_crates_issuance_n_tracking
+  plan: free
+  envVars:
+  - key: SECRET_KEY
+    sync: false
+  - key: DATABASE_URL
+    sync: false
+  region: oregon
+  dockerContext: .
+  dockerfilePath: ./Dockerfile
+  autoDeployTrigger: commit
