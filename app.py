@@ -10,9 +10,10 @@ from flask_migrate import Migrate
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
+import math
 #from weasyprint import HTML
 #import pdfkit
-
+from functools import wraps
 
 #from flask import Flask, render_template, request, redirect, url_for, flash
 #from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
@@ -43,7 +44,7 @@ if not db_url:
       "mssql+pyodbc:///?odbc_connect="
       "DRIVER={ODBC Driver 17 for SQL Server};"
       "SERVER=TOSHIBA\\SQLEXP2014;"
-      "DATABASE=CrateTrackerDB;"
+      "DATABASE=YbeautyRegister;"
       "UID=sa;"
       "PWD=CMos@2019"
   )
@@ -75,32 +76,136 @@ migrate = Migrate(app, db)
 # Import models AFTER db is defined
 #import models
 # --- Models ---
+#class Outlet(db.Model):
+#    __tablename__ = 'outlet'
+#    id = db.Column(db.Integer, primary_key=True)   # internal PK
+#    outlet_id = db.Column(db.Integer, nullable=False, unique=True)
+#    name = db.Column(db.String(255), nullable=False)
+
 class Outlet(db.Model):
     __tablename__ = 'outlet'
+
+    # Primary keys and identifiers
     id = db.Column(db.Integer, primary_key=True)   # internal PK
-    outlet_id = db.Column(db.Integer, nullable=False, unique=True)
+    outlet_id = db.Column(db.Integer, nullable=False, unique=True)  # business ID
     name = db.Column(db.String(255), nullable=False)
 
-class Users(db.Model, UserMixin):
-    __tablename__ = 'users'
+    # Location details
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+
+    # Operational details
+    address = db.Column(db.String(255), nullable=True)
+    clock_in_radius = db.Column(db.Integer, default=50)  # meters
+
+    # Relationships
+    user_id = db.Column(db.Integer, nullable=True)
+    #user = db.relationship('User', backref='outlets')
+
+    # Audit fields
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+
+    def __repr__(self):
+        return f"<Outlet {self.name} ({self.outlet_id})>"
+
+
+class Users(db.Model,UserMixin):
+    __tablename__ = "users"
+
     id = db.Column(db.Integer, primary_key=True)
-    staff_name = db.Column(db.String(100), unique=True, nullable=False)
+    staff_name = db.Column(db.String(100), unique=True, nullable=False) #name
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.Integer, nullable=False)    
-    suspended = db.Column(db.Boolean, default=False)
-    feed_entries = db.Column(db.Boolean, default=False)
-    amend_entry = db.Column(db.Boolean, default=False)
-    provision1 = db.Column(db.Boolean, default=False)
-    provision2 = db.Column(db.Boolean, default=False)
-    provision3 = db.Column(db.Boolean, default=False)
-    provision4 = db.Column(db.Boolean, default=False)
-    provision5 = db.Column(db.Boolean, default=False)
-    provision6 = db.Column(db.Boolean, default=False)
-    provision7 = db.Column(db.Boolean, default=False)
-    provision8 = db.Column(db.Boolean, default=False)
-    provision9 = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True) #status
+    email = db.Column(db.String(120), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    role = db.Column(db.Integer, nullable=True) # e.g. 1 for superadmin,2 for admin,3 for manager,4 for supervisor,5 for Staff
+    privileges = db.Column(db.Integer, nullable=True)  # e.g. 1 for static 2 for reliever 
+    base_salary = db.Column(db.Float, nullable=True)  # monthly salary
+    hire_date = db.Column(db.Date, nullable=True)
+    
 
+    attendances = db.relationship("Attendance", backref="user", lazy=True)
+    payrolls = db.relationship("Payroll", backref="user", lazy=True)
+    leaves = db.relationship("Leave", backref="user", lazy=True)
+
+    #def __repr__(self):
+    #    return f"<User {self.staff_name}>"
+    def __repr__(self):
+        return f"<User {self.id} - {self.staff_name}>"
+
+class Attendance(db.Model):
+    __tablename__ = "attendance"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    date = db.Column(db.Date, nullable=False)
+    check_in_time = db.Column(db.DateTime, nullable=True)
+    check_out_time = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default="Present")
+    #distance = db.Column(db.Float, nullable=True)
+    # Renamed field
+    clockin_distance = db.Column(db.Float, nullable=True)
+    # New field
+    clockout_distance = db.Column(db.Float, nullable=True)
+    work_hours = db.Column(db.Float, nullable=True)
+    overtime_hours = db.Column(db.Float, nullable=True)
+    shift_id = db.Column(db.Integer, db.ForeignKey("shifts.id"), nullable=True)
+
+    geo_lat = db.Column(db.Float, nullable=True)
+    geo_lon = db.Column(db.Float, nullable=True)
+    device_info = db.Column(db.String(100), nullable=True)
+    remarks = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
+    updated_at = db.Column(db.DateTime, default=db.func.now(),
+                           onupdate=db.func.now(), nullable=False)
+
+class Shift(db.Model):
+    __tablename__ = "shifts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    overtime_rate = db.Column(db.Float, nullable=True)
+
+    attendances = db.relationship("Attendance", backref="shift", lazy=True)
+
+class Leave(db.Model):
+    __tablename__ = "leave"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    leave_type = db.Column(db.String(50), nullable=False)   # Sick, Annual, Unpaid
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    approved_by = db.Column(db.String(50), nullable=True)
+    status = db.Column(db.String(20), default="Pending")    # Pending, Approved, Rejected
+
+class Payroll(db.Model):
+    __tablename__ = "payroll"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+
+    base_salary = db.Column(db.Float, nullable=False)
+    daily_rate = db.Column(db.Float, nullable=True)
+    overtime_pay = db.Column(db.Float, nullable=True)
+    deductions = db.Column(db.Float, nullable=True)
+    bonuses = db.Column(db.Float, nullable=True)
+
+    gross_salary = db.Column(db.Float, nullable=False)
+    net_salary = db.Column(db.Float, nullable=False)
+
+    generated_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
+    approved_by = db.Column(db.String(50), nullable=True)
+    remarks = db.Column(db.Text, nullable=True)
 
 
 class Warehouse(db.Model):
@@ -152,6 +257,20 @@ class EndDayLog(db.Model):
 
     #warehouse = db.relationship("Warehouse", backref="end_day_logs")
 
+ROLE_LABELS = {
+    1: "Super Admin",
+    2: "Admin",
+    3: "Manager",
+    4: "Supervisor",
+    5: "Staff"
+}
+
+PRIVILEGE_LABELS = {
+    1: "All",
+    2: "Sup",
+    3: "Reg"
+}
+
 # Secure one-time init route
 # Example to create all tables manually: http://127.0.0.1:10000/init-db?token=changeme
 @app.route("/init-db")
@@ -166,6 +285,41 @@ def init_db():
 
         from sqlalchemy import text
         try:
+            # Safely drop column 'inactive' by removing its default constraint first
+            db.session.execute(text("""
+            -- Insert default SUPER_ADMINISTRATOR account if not already present
+            IF NOT EXISTS (
+                SELECT 1 FROM users WHERE username = 'SP_ADMIN'
+                )
+                BEGIN
+                    INSERT INTO users (
+                        staff_name,
+                        username,
+                        password_hash,
+                        is_active,
+                        email,
+                        department,
+                        role,
+                        privileges,
+                        base_salary,
+                        hire_date
+                    )
+                    VALUES (
+                        'SUPER_ADMINISTRATOR',   -- staff_name
+                        'SP_ADMIN',              -- username
+                        'scrypt:32768:8:1$HwXmeq1EUpSyRCSI$9f1ab94b977f3dd9827e68aaecc34464ffd0f2051f3d0ac74b2c8560b117ce115da3825c672d49e8ba5713e22b65ffb4b0923a7e78068cb91df8439c58fe01fc', -- password_hash (replace with hashed value!= 1234)
+                        1,                       -- is_active
+                        'admin@system.com',      -- email
+                        'Administration',        -- department
+                        1,                 -- role
+                        1,                   -- privileges
+                        2000,                    -- base_salary
+                        '2026-08-01'             -- hire_date
+                    );
+                END
+            """))
+            db.session.commit()
+
             # Add privilege columns if missing
             privilege_columns = [
                 ("suspended", "BIT", "0"),
@@ -358,6 +512,31 @@ def github_instructions():
 #            flash("Invalid credentials, please try again.", "danger")
 #    return render_template("login.html")
 
+# --- CONFIG ---
+#SITE_LAT = -1.221770 # -1.2921   # Example: Nairobi CBD
+#SITE_LON =  36.880007 #36.8219
+#CLOCKIN_RADIUS = 50 #3  #For an office attendance system, a 50 m radius is usually safe. It avoids false negatives from small coordinate shifts but still prevents clock‑ins from far away.
+
+# --- UTILS ---
+def preserve_this_haversine(lat1, lon1, lat2, lon2):
+    R = 6371000  # Earth radius in meters
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+
+from math import radians, sin, cos, sqrt, atan2
+def haversine(lat1, lon1, lat2, lon2):
+    # Earth radius in meters
+    R = 6371000
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    return R * c
+
 def update_user_password(username: str, plain_password: str) -> bool:
     """
     Hashes a plain password and updates the given user's record.
@@ -371,8 +550,8 @@ def update_user_password(username: str, plain_password: str) -> bool:
     db.session.commit()
     return True
 
-@app.route("/", methods=["GET", "POST"])
-def login():
+#@app.route("/", methods=["GET", "POST"])
+def no_warnings_login():
     if request.method == "POST":
         #username = request.form["username"]
         username = request.form["username"].lower()
@@ -380,25 +559,83 @@ def login():
         print(username,password)
         user = Users.query.filter_by(username=username).first()
         
-        print(user)
-        #print(user.suspended)
         # Update Admin user
         #success = update_user_password("tempuser", "changeme")
         #if success:
         #    print("Password updated and hashed successfully.")
         #else:
         #    print("User not found.")
-        if user.suspended:
+        if user and not user.is_active: #it was if suspended
             flash("You are currently suspended login into system, please contact your admin.", "danger")    
         elif user and check_password_hash(user.password_hash, password):
+            print(user)
+            print(user.role)
             login_user(user)
-            #return redirect(url_for("dashboard"))
-            return redirect(url_for("home"))
+            #return redirect(url_for("home"))
+            return redirect(url_for("dashboard"))
+            #return render_template("dashboard.html")
         else:
             #print(generate_password_hash("1234"))
             flash("Invalid credentials, please try again.", "danger")
 
     return render_template("login.html")
+
+
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"].lower()
+        password = request.form["password"]
+        print(username, password)
+
+        user = Users.query.filter_by(username=username).first()
+
+        if user and not user.is_active:
+            return jsonify({
+                "status": "error",
+                "message": "⚠️ You are currently suspended. Please contact your admin."
+            }), 400
+
+        elif user and check_password_hash(user.password_hash, password):
+            login_user(user, remember="remember" in request.form)
+            return jsonify({
+                "status": "success",
+                "message": "✅ Login successful",
+                "redirect": url_for("dashboard")   # ✅ include redirect target
+            }), 200
+
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "⚠️ Invalid credentials, please try again."
+            }), 400
+
+    return render_template("login.html")
+
+
+@app.route("/profile")
+@login_required
+def profile():
+    # Example attendance summary (replace with DB queries)
+    attendance = {
+        "present": Attendance.query.filter_by(user_id=current_user.id, status="Present").count(),
+        "absent": Attendance.query.filter_by(user_id=current_user.id, status="Absent").count(),
+        "late": Attendance.query.filter_by(user_id=current_user.id, status="Late").count()
+    }
+
+    # Example leave balance (replace with DB queries)
+    leave = {
+        "annual": 12,  # Example static value
+        "sick": 5
+    }
+    user_id=current_user.id
+    #token = serializer.dumps(user_id, salt="password-reset-salt")
+    token = serializer.dumps(user_id, salt="password-reset")
+    return render_template("profile.html",
+                           attendance=attendance,
+                           token=token,
+                           outletname=get_current_user_outlet(),
+                           leave=leave)
 
 @app.route("/logout")
 @login_required
@@ -417,142 +654,653 @@ def load_user(user_id):
     #return Users.query.get(int(user_id))
     return db.session.get(Users, int(user_id))
     
-@app.route("/home", methods=["GET", "POST"])
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.role != "admin":
+            flash("Access denied: Admins only", "danger")
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/employees')
 @login_required
-def home():
-    outlets = Outlet.query.all()
-
-    dispatched = (
-        db.session.query(db.func.sum(WarehouseTransaction.good_crates))
-        .filter(WarehouseTransaction.transaction_type == 'dispatch')
-        .scalar()
-    ) or 0
-
-    collected = (
-        db.session.query(db.func.sum(WarehouseTransaction.good_crates))
-        .filter(WarehouseTransaction.transaction_type == 'collection')
-        .scalar()
-    ) or 0
-
-    variance = dispatched - collected
-    color = "table-danger" if variance > 0 else "table-success"
-
-    warehouse_total = recent_wrhse_crates_stocktake_count()
-
-    total_sent = dispatched
-    total_received = collected
-    current_balance = warehouse_total - total_sent + total_received
+@admin_required
+def employees():
+    return render_template('admin/employees.html')
 
 
-    total_collected_today = total_daily_crates_collected()
-    #print("total_collected_today",  total_collected_today)
-    total_dispatched_today = total_daily_crates_dispatched()
-    #print("total_dispatched_today",  total_dispatched_today)
-    recent_stcktake_crate = recent_wrhse_crates_stocktake_count()
-    #print("recent_stcktake_crate",  recent_stcktake_crate)
-    total_available_for_use = recent_stcktake_crate - total_dispatched_today + total_collected_today
-    #print("total_available_for_use",  total_available_for_use)
-    variance_today = total_collected_today - total_dispatched_today
-    #print("variance_today",  variance_today)
-    denominator = recent_stcktake_crate
-    #print("denominator",  denominator)
-    available_pct_today = (total_available_for_use / denominator * 100) if denominator > 0 else 0
-    #print("available_pct_today",  available_pct_today)
+def get_current_user_outlet():
+   outlet = Outlet.query.filter_by(user_id=current_user.id).first()
+   if outlet:
+    user_outlet = outlet.name
+   else:
+    user_outlet = "None"
+   return (user_outlet)    
+    
+@app.route("/dashboard", methods=["GET", "POST"])
+@login_required
+def dashboard():
+    #summary = get_today_summary(current_user.id)
+    #return jsonify(summary)   # or render_template("home.html", summary=summary)
+    # Find outlet attached to current user
+    #outlet = Outlet.query.filter_by(user_id=current_user.id).first()
 
-    # Instead of building HTML here, just pass the values to the template
-    return render_template(
-        "home.html",
-        warehouse_total=warehouse_total,
-        current_balance=current_balance,
-        total_available_for_use=total_available_for_use,
-        total_sent=total_sent,
-        total_dispatched_today=total_dispatched_today,
-        total_received=total_received,
-        total_collected_today=total_collected_today,
-        variance=variance,
-        variance_today=variance_today,
-        available_pct_today=available_pct_today,
-        outlets=outlets
+    #if outlet:
+    #    outletname = outlet.name
+    #else:
+    #    outletname = "None"
+
+    return render_template("dashboard.html",outletname=get_current_user_outlet())
+    
+
+# --- ROUTES ---
+@app.route("/clockin", methods=["POST"])
+@login_required
+def clock_in():
+
+    ok, error_response, distance, user_lat, user_lon,outletname = checkif_any_existing_login_onloading()
+    if not ok:
+        return error_response
+    
+    # Step 1: Get outlet attached to current user
+    #outlet = Outlet.query.filter_by(user_id=current_user.id).first()
+    #if not outlet:
+    #    return jsonify({"error": "No outlet assigned to this user"}), 400
+
+    # Step 2: Calculate distance between user location and outlet location
+    #outlet_lat = float(outlet.latitude)
+    #outlet_lon = float(outlet.longitude)
+    #outlet_radius = float(outlet.radius)  # radius in meters
+
+    #distance = haversine(user_lat, user_lon, outlet_lat, outlet_lon)
+
+    #if distance > outlet_radius:
+    #    return jsonify({
+    #        "error": f"You are not within the required outlet area. "
+    #                 f"Outlet: {outlet.name}, Address: {outlet.address}, "
+    #                 f"Distance: {distance:.2f}m (allowed radius {outlet_radius}m)"
+    #    }), 400
+
+    
+
+
+    # Step 3: Record clock-in
+    check_in_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Get outlet attached to current user
+    outlet = Outlet.query.filter_by(user_id=current_user.id).first()
+
+    record = Attendance(
+        user_id=current_user.id,
+        date=date.today(),
+        check_in_time=check_in_time,
+        check_out_time=None,
+        status="Present",
+        clockin_distance=distance,
+        geo_lat=user_lat,
+        geo_lon=user_lon,
+        device_info="PC",
+        remarks=None,
+        outlet_id=outlet.id if outlet else None,
+        outlet_name=outlet.name if outlet else "None"
+        #outlet_address=outlet.address if outlet else "None"
+    )
+    db.session.add(record)
+    db.session.commit()
+
+
+    summary = get_today_summary(current_user.id)
+    return jsonify({
+        "success": f"Clock-in successful at {check_in_time}, "
+                   f"{distance:.2f}m from {outletname}",
+        "summary": summary
+    })
+
+@app.route("/clockout", methods=["POST"])
+@login_required
+def clock_out():
+    data = request.json
+    user_lat = data.get("latitude")
+    user_lon = data.get("longitude")
+
+    if not user_lat or not user_lon:
+        return jsonify({"error": "Location required"}), 400
+
+    # Step 1: Get outlet attached to current user
+    outlet = Outlet.query.filter_by(user_id=current_user.id).first()
+    if not outlet:
+        return jsonify({"error": "No outlet assigned to this user"}), 400
+
+    outlet_lat = float(outlet.latitude)
+    outlet_lon = float(outlet.longitude)
+    outlet_radius = float(outlet.clock_in_radius)  # radius in meters
+
+    # Step 2: Calculate distance from outlet
+    distance = haversine(float(user_lat), float(user_lon), outlet_lat, outlet_lon)
+
+    if distance > outlet_radius:
+        return jsonify({
+            "error": f"You are not within the required outlet area to clock out. "
+                     f"Outlet: {outlet.name}, Location: {outlet.address}, "
+                     f"Distance: {distance:.2f}m (allowed radius {outlet_radius}m)"
+        }), 403
+
+    # Step 3: Get the last attendance record
+    last_record = Attendance.query.filter_by(user_id=current_user.id)\
+                                  .order_by(Attendance.id.desc())\
+                                  .first()
+
+    if not last_record or last_record.check_out_time is not None:
+        return jsonify({"error": "You are not currently clocked in. Please check in first"}), 403
+
+    # Step 4: Update with check-out time
+    check_out_time = datetime.now().replace(second=0, microsecond=0)
+    last_record.check_out_time = check_out_time
+    last_record.clockout_distance = distance
+
+    # Attach outlet info for reporting
+    outlet = Outlet.query.filter_by(user_id=current_user.id).first()
+    if outlet:
+        last_record.outlet_id = outlet.id
+        last_record.outlet_name = outlet.name
+        #last_record.outlet_address = outlet.address
+    else:
+        last_record.outlet_id = None
+        last_record.outlet_name = "None"
+        #last_record.outlet_address = "None"
+
+    # Step 5: Calculate work hours
+    if last_record.check_in_time:
+        delta = check_out_time - last_record.check_in_time
+        hours_worked = round(delta.total_seconds() / 3600, 2)
+        last_record.work_hours = hours_worked
+
+        # Optional overtime
+        last_record.overtime_hours = max(0, hours_worked - 8)
+    db.session.commit()
+
+
+    summary = get_today_summary(current_user.id)
+    return jsonify({
+        "success": f"Clocked out {check_out_time.strftime('%Y-%m-%d %H:%M')} successfully "
+                   f"at {distance:.2f}m from {outlet.name}, worked {last_record.work_hours:.2f} hrs",
+        "summary": summary
+    })
+
+
+@app.route("/static_clockin", methods=["POST"])
+#@app.route("/clockin", methods=["POST"])
+@login_required
+def static_clock_in():
+
+    ok, error_response, distance, user_lat, user_lon = checkif_any_existing_login_onloading()
+    print(ok)
+    if not ok:
+        #print(error_response,"this?")
+        return error_response
+        
+
+    #check_in_time=datetime.now()
+    check_in_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    print("display time before inserting record")
+    
+    # Step 3: Otherwise, insert a new record
+    record = Attendance(
+        user_id=current_user.id,
+        date=date.today(),                   # record the day
+        check_in_time=check_in_time,     # when they clocked in
+        check_out_time=None,
+        status="Present",
+        clockin_distance=distance,
+        geo_lat=user_lat,
+        geo_lon=user_lon,
+        device_info="PC",                     # optional metadata
+        remarks=None
+    )
+    db.session.add(record)
+    db.session.commit()
+    summary = get_today_summary(current_user.id)
+    #return jsonify({"success": "Clock-in successful", "summary": summary})
+    return jsonify({"success": f"Fantastic!!! Clock-in {check_in_time} successfully at {distance:.2f}mtrs away of site","summary": summary})
+
+def checkif_any_existing_login_onloading():
+    data = request.json
+    user_lat = data.get("latitude")
+    print("user_lat",user_lat)
+    user_lon = data.get("longitude")
+    print("user_lon",user_lon)
+
+    if not user_lat or not user_lon:
+        return False, jsonify({"error": "Location required"}), None, None, None,None
+
+    # Step 1: Get outlet attached to current user
+    outlet = Outlet.query.filter_by(user_id=current_user.id).first()
+    if not outlet:
+        return False, jsonify({"error": "No outlet assigned to this user"}), None, None, None,None
+
+    outlet_lat = float(outlet.latitude)
+    outlet_lon = float(outlet.longitude)
+    outlet_radius = float(outlet.clock_in_radius)  # radius in meters
+    outletname= outlet.name
+    print(outletname)
+
+    # Step 2: Calculate distance from outlet
+    distance = haversine(float(user_lat), float(user_lon), outlet_lat, outlet_lon)
+
+    if distance > outlet_radius:
+        return False, jsonify({
+            "error": f"You are not within the required outlet area. "
+                     f"Outlet: {outlet.name}, Location: {outlet.address}, "
+                     f"Distance: {distance:.2f}m (allowed radius {outlet_radius}m)"
+        }), None, None, None,None
+
+    # Step 3: Check if user already has an active clock-in
+    last_record = Attendance.query.filter_by(user_id=current_user.id)\
+                                  .order_by(Attendance.id.desc())\
+                                  .first()
+    if last_record and last_record.check_out_time is None:
+        return False, jsonify({
+            "error": f"You are already clocked in since {last_record.check_in_time}. "
+                     f"Please clock out first."
+        }), None, None, None,None
+
+    # Step 4: Otherwise allow clock-in
+    return True, None, distance, float(user_lat), float(user_lon),str(outletname)
+
+
+@app.route("/check_active_login_existence", methods=["POST"])
+@login_required
+def check_active_login_existence():
+    ok, error_response, distance, user_lat, user_lon,outletname = checkif_any_existing_login_onloading()
+    #print(error_response)
+    if not ok:
+        # 🚨 return the JSON error with a proper status code
+     return error_response
+    
+@app.route("/alert_user_last_clockout", methods=["POST"]) 
+@login_required   
+def alert_user_last_clockout():
+    # Get the last record with a completed clock-out
+    last_clockout = Attendance.query.filter(
+        Attendance.user_id == current_user.id,
+        Attendance.check_out_time.isnot(None)
+    ).order_by(Attendance.check_out_time.desc()).first()
+
+    # Get the most recent record overall (could be open or closed)
+    latest_record = Attendance.query.filter_by(user_id=current_user.id)\
+                                    .order_by(Attendance.id.desc())\
+                                    .first()
+
+    print(last_clockout)
+    print(latest_record)
+
+    if last_clockout:
+        print(latest_record.id)
+        print(last_clockout.id)
+        print(latest_record.check_out_time)
+
+        # If there is a newer record after the last clock-out and it's still open
+        if latest_record and latest_record.id > last_clockout.id and latest_record.check_out_time is None:
+            return jsonify({
+                "success": f"Your last clock-out was at {last_clockout.check_out_time}. "
+               f"You have a pending clock-out since {latest_record.check_in_time}"
+            })
+
+        else:
+            return jsonify({
+                "error": f"Your last clock-out was at {last_clockout.check_out_time}"
+            })
+    else:
+        # No previous clock-out found at all
+        if latest_record and latest_record.check_out_time is None:
+            return jsonify({
+                "error": f"You have a pending clock-out since {latest_record.check_in_time}"
+            })
+        else:
+            return jsonify({"error": "No previous clock-out found"})
+
+
+
+@app.route("/summary", methods=["GET"])
+@login_required
+def today_summary():
+    today = date.today()
+    records = Attendance.query.filter_by(user_id=current_user.id, date=today)\
+                              .order_by(Attendance.check_in_time.asc()).all()
+
+    if not records:
+        return jsonify({
+            "clock_in": "You haven’t clocked in today.",
+            "clock_out": "No clock-out record.",
+            "work_hours": "No work hours recorded.",
+            "clock_in_count": 0,
+            "outlet": "None"
+        })
+
+    summary = {}
+
+    # First clock-in of the day
+    first_record = records[0]
+    summary["clock_in"] = (
+        f"You first clocked in at {first_record.check_in_time.strftime('%H:%M')} "
+        f"at {first_record.outlet_name or 'None'}"
     )
 
+    # Last record for current status
+    last_record = records[-1]
+    if last_record.check_out_time:
+        summary["clock_out"] = (
+            f"You last clocked out at {last_record.check_out_time.strftime('%H:%M')} "
+            f"from {last_record.outlet_name or 'None'}"
+        )
+    else:
+        summary["clock_out"] = (
+            f"You are still logged in since {last_record.check_in_time.strftime('%H:%M')} "
+            f"at {last_record.outlet_name or 'None'}"
+        )
 
-def retrieve_outlets():
-    with external_engine.connect() as conn:
-        result = conn.execute(text(
-            "SELECT [BranchName] FROM [Tunda Green Limited$Dimension2$69b6b001-139b-4a64-a385-4bc69d6bb6a5]"
-        ))
-        external_outlets = [row.BranchName for row in result]
+    # Total hours worked today
+    total_hours = sum((r.work_hours or 0) for r in records)
+    if last_record.check_in_time and not last_record.check_out_time:
+        # Add running time for current session
+        delta = datetime.now() - last_record.check_in_time
+        total_hours += delta.total_seconds() / 3600
 
-    created_outlets = []  # will hold (id, name) pairs
+    summary["work_hours"] = f"You have worked {total_hours:.2f} hours today."
 
-    # Step 1: Add missing outlets
-    for branch_name in external_outlets:
-        existing = Outlet.query.filter_by(name=branch_name).first()
-        if not existing:
+    # Number of clock-ins
+    summary["clock_in_count"] = f"You have clocked-in {len(records)} times today."
+
+    # Outlet info (last record’s outlet)
+    summary["outlet"] = (
+        f"{last_record.outlet_name or 'None'} — {last_record.outlet_address or ''}"
+    )
+
+    return jsonify(summary)
+
+
+def get_today_summary(user_id):
+    today = date.today()
+    record = Attendance.query.filter_by(user_id=user_id, date=today).first()
+
+    if not record:
+        return {
+            "clock_in": "You haven’t clocked in today.",
+            "clock_out": "No clock-out record.",
+            "work_hours": "No work hours recorded."
+        }
+
+    summary = {}
+
+    # Clock-in
+    if record.check_in_time:
+        summary["clock_in"] = f"You clocked in at {record.check_in_time.strftime('%H:%M')}"
+    else:
+        summary["clock_in"] = "You haven’t clocked in today."
+
+    # Clock-out
+    if record.check_out_time:
+        summary["clock_out"] = f"You clocked out at {record.check_out_time.strftime('%H:%M')}"
+    else:
+        summary["clock_out"] = f"You are still logged in since {record.check_in_time.strftime('%H:%M')}"
+
+    # Work hours
+    if record.work_hours:
+        summary["work_hours"] = f"You worked for {record.work_hours:.2f} hours today."
+    elif record.check_in_time and not record.check_out_time:
+        delta = datetime.now() - record.check_in_time
+        summary["work_hours"] = f"You have been working for {delta.total_seconds()/3600:.2f} hours so far."
+    else:
+        summary["work_hours"] = "No work hours recorded."
+
+    return summary
+
+@app.route("/report", methods=["GET"])
+@login_required
+def detailed_report():
+    user_id = request.args.get("user_id")
+    group_id = request.args.get("group_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    query = Attendance.query
+
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if group_id:
+        query = query.join(User).filter(User.group_id == group_id)
+    if start_date and end_date:
+        query = query.filter(Attendance.date.between(start_date, end_date))
+
+    records = query.order_by(Attendance.date.asc(), Attendance.check_in_time.asc()).all()
+
+    report = []
+    for r in records:
+        duration = None
+        if r.check_in_time and r.check_out_time:
+            delta = r.check_out_time - r.check_in_time
+            duration = round(delta.total_seconds() / 3600, 2)
+
+        report.append({
+            "date": r.date.strftime("%Y-%m-%d"),
+            "user_id": r.user.id,                # include user id
+            "staff_name": r.user.staff_name,     # include staff name
+            "clock_in": r.check_in_time.strftime("%H:%M") if r.check_in_time else None,
+            "clock_in_distance": r.clockin_distance,
+            "clock_out": r.check_out_time.strftime("%H:%M") if r.check_out_time else None,
+            "clock_out_distance": r.clockout_distance,
+            "work_hours": duration or r.work_hours,
+            "status": r.status
+        })
+    return jsonify(report)
+
+
+@app.route('/reports')
+@login_required
+def reports():
+    # Example: only admins can see full reports
+    #if current_user.role != "admin":
+    #    flash("Access denied: Reports are for admins only", "danger")
+    #    return redirect(url_for('dashboard'))
+
+    # Example data (replace with DB queries)
+    monthly_summary = {
+        "month": date.today().strftime("%B %Y"),
+        "total_present": Attendance.query.filter_by(status="Present").count(),
+        "total_absent": Attendance.query.filter_by(status="Absent").count(),
+        "total_late": Attendance.query.filter_by(status="Late").count()
+    }
+
+    # Example: top 5 employees with most late arrivals
+    top_late = Attendance.query.filter_by(status="Late")\
+                               .group_by(Attendance.user_id)\
+                               .limit(5).all()
+
+    #return render_template("admin/reports.html",
+    #                       monthly_summary=monthly_summary,
+    #                       top_late=top_late)
+    return render_template("admin/reports.html",
+                           monthly_summary=monthly_summary,
+                           )
+
+
+@app.route("/report_page")
+@login_required
+def report_page():
+    # Query all users and groups
+    #users = Users.query.all()
+    users = retrieve_offline_users()
+    #groups = Group.query.all()
+    #print(users)
+
+    # Pass them into the template
+    return render_template("report.html", users=users) #groups=groups
+
+import csv
+from io import StringIO
+from flask import Response, jsonify
+
+@app.route("/report_export", methods=["GET"])
+@login_required
+def report_export():
+    user_id = request.args.get("user_id")
+    group_id = request.args.get("group_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    query = Attendance.query
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if group_id:
+        query = query.join(User).filter(User.group_id == group_id)
+    if start_date and end_date:
+        query = query.filter(Attendance.date.between(start_date, end_date))
+
+    records = query.order_by(Attendance.date.asc(), Attendance.check_in_time.asc()).all()
+
+    # 🚨 If no records, return JSON warning instead of CSV
+    if not records:
+        return jsonify({"error": "No records found for the selected filters. Nothing to export."}), 404
+
+    # Otherwise build CSV
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["Date", "User ID", "User Name", "Clock-in", "Clock-in Distance",
+                     "Clock-out", "Clock-out Distance", "Hours", "Status"])
+
+    for r in records:
+        duration = None
+        if r.check_in_time and r.check_out_time:
+            delta = r.check_out_time - r.check_in_time
+            duration = round(delta.total_seconds() / 3600, 2)
+
+        writer.writerow([
+            r.date.strftime("%Y-%m-%d"),
+            r.user.id,
+            r.user.staff_name,
+            r.check_in_time.strftime("%H:%M") if r.check_in_time else "",
+            r.clockin_distance or "",
+            r.check_out_time.strftime("%H:%M") if r.check_out_time else "",
+            r.clockout_distance or "",
+            duration or r.work_hours or "",
+            r.status or ""
+        ])
+
+    output = si.getvalue()
+    si.close()
+
+    return Response(output,
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment;filename=attendance_report.csv"})
+
+
+
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template("settings/index.html")
+
+@app.route('/settings/outlet', methods=['GET', 'POST'])
+@login_required
+def outlet_settings():
+    search_query = request.args.get('search', '')
+    if search_query:
+        outlets = Outlet.query.filter(
+            Outlet.name.ilike(f"%{search_query}%") |
+            Outlet.outlet_id.ilike(f"%{search_query}%")
+        ).all()
+    else:
+        outlets = Outlet.query.all()
+
+    selected_outlet = None
+
+    #users with no outlets attached
+    # Example using SQLAlchemy
+    free_users = Users.query.filter(~Users.id.in_(db.session.query(Outlet.user_id))).all()
+
+    if request.method == 'POST':
+        action = request.form.get("action")
+
+        # CREATE
+        if action == "create":
+            print("we are inside create loop...")
+
+            # 🔎 Compute next outlet_id automatically
             last_outlet = Outlet.query.order_by(Outlet.outlet_id.desc()).first()
-            next_outlet_id = (last_outlet.outlet_id + 1) if last_outlet else 1000
+            next_outlet_id = (last_outlet.outlet_id + 1) if last_outlet else 1000  # start from 1000
+
+            new_user_id = request.form.get('user_id')
+
+            # Check if user is already attached to another outlet
+            if new_user_id:
+                existing_outlet = Outlet.query.filter_by(user_id=new_user_id).first()
+                if existing_outlet:
+                    return jsonify({
+                        "error": f"⚠️ Request declined, User is already attached to outlet '{existing_outlet.name}'. Cannot attach to multiple outlets."
+                    }), 400
 
             new_outlet = Outlet(
-                name=branch_name,
-                outlet_id=next_outlet_id
+                outlet_id=next_outlet_id,
+                name=request.form.get('name'),
+                latitude=float(request.form.get('latitude')) if request.form.get('latitude') else None,
+                longitude=float(request.form.get('longitude')) if request.form.get('longitude') else None,
+                address=request.form.get('address'),
+                clock_in_radius=int(request.form.get('clock_in_radius')) if request.form.get('clock_in_radius') else 50,
+                user_id=new_user_id if new_user_id else None
             )
+
             db.session.add(new_outlet)
-            db.session.flush()
-            created_outlets.append((new_outlet.outlet_id, new_outlet.name))
+            db.session.commit()
+            return jsonify({"success": f"New outlet created successfully with ID {next_outlet_id}!"})
 
-    # Step 2: Delete outlets that no longer exist externally
-    for local_outlet in Outlet.query.all():
-        if local_outlet.name not in external_outlets:
-            db.session.delete(local_outlet)
+        # UPDATE
+        outlet_id = request.form.get('outlet_id')
+        selected_outlet = Outlet.query.get(outlet_id)
+        if action == "update" and selected_outlet:
+                        
+            # Check if user is already attached to another outlet
+            updated_user_id = request.form.get('user_id')
+            if updated_user_id:
+                existing_outlet = Outlet.query.filter_by(user_id=updated_user_id).first()
+                if existing_outlet:
+                    return jsonify({
+                        "error": f"⚠️ Request declined, User is already attached to outlet '{existing_outlet.name}'. Cannot attach to multiple outlets."
+                    }), 400
+              
+            # update logic...
+            selected_outlet.name = request.form.get('name')
+            selected_outlet.latitude = float(request.form.get('latitude'))
+            selected_outlet.longitude = float(request.form.get('longitude'))
+            selected_outlet.address = request.form.get('address')
+            selected_outlet.clock_in_radius = int(request.form.get('clock_in_radius'))
+            selected_outlet.user_id = request.form.get('user_id')
+            db.session.commit()
+            return jsonify({"success": "Outlet updated successfully!"})
 
-    db.session.commit()
+        # DELETE
+        if action == "delete" and selected_outlet:
+            db.session.delete(selected_outlet)
+            db.session.commit()
+            return jsonify({"success": "Outlet deleted successfully!"})
 
-    # Step 3: Return synced outlets
-    return [(o.outlet_id, o.name) for o in Outlet.query.all()]
+    # For GET requests, also compute next_outlet_id to prefill the form
+    last_outlet = Outlet.query.order_by(Outlet.outlet_id.desc()).first()
+    next_outlet_id = (last_outlet.outlet_id + 1) if last_outlet else 1000
 
-
-def retrieve_outlets_manual_create():
-    # Temporary hard-coded list for testing
-    external_outlets = ['Katani', 'Airport', 'Mountain']
-
-    created_outlets = []
-
-    # Step 2: Sync Outlet table with these test names
-    for branch_name in external_outlets:
-        existing = Outlet.query.filter_by(name=branch_name).first()
-        if not existing:
-            last_outlet = Outlet.query.order_by(Outlet.outlet_id.desc()).first()
-            next_outlet_id = (last_outlet.outlet_id + 1) if last_outlet else 1000
-
-            new_outlet = Outlet(
-                name=branch_name,
-                outlet_id=next_outlet_id
-            )
-            db.session.add(new_outlet)
-            db.session.flush()
-
-            created_outlets.append((new_outlet.outlet_id, new_outlet.name))
-
-    db.session.commit()
-
-    # Step 3: Return both names and IDs
-    return [(o.outlet_id, o.name) for o in Outlet.query.all()]
-
-
-def populate_warehouses_with_active_outlets(created_outlets):
-    for outlet_id, branch_name in created_outlets:
-        existing_wh = Warehouse.query.filter_by(name=branch_name).first()
-        if not existing_wh:
-            new_wh = Warehouse(name=branch_name)
-            db.session.add(new_wh)
-            db.session.flush()
-            print(f"Warehouse created with id {new_wh.id}, linked to outlet {outlet_id}")
-    db.session.commit()
+    return render_template("settings/outlet.html",
+                           outlets=outlets,
+                           selected_outlet=selected_outlet,
+                           users=retrieve_offline_users(),
+                           free_users=free_users,
+                           search_query=search_query,
+                           next_outlet_id=next_outlet_id)
 
 
 def retrieve_offline_users():
   #users = Users.query.all()  # returns list of User objects
-  #usernames = [u.staff_name for u in users]  # extract usernames
+  #usernames = [u.f_namstafe for u in users]  # extract usernames
   #print("DEBUG: usernames =", usernames)
   #return usernames
   return Users.query.all()
@@ -569,382 +1317,6 @@ def add_purchase(warehouse_id, crates, description=""):
         warehouse.total_crates += crates
     db.session.add(txn)
     db.session.commit()
-
-def record_loss(warehouse_id, crates, description="Damaged crates"):
-    txn = WarehouseTransaction(
-        warehouse_id=warehouse_id,
-        transaction_type="loss",
-        crates=-crates,
-        description=description
-    )
-    warehouse = Warehouse.query.get(warehouse_id)
-    if warehouse:
-        warehouse.total_crates -= crates
-    db.session.add(txn)
-    db.session.commit()
-
-@app.route("/record/<transaction_type>", methods=["GET", "POST"])
-@login_required
-def record_transaction(transaction_type):
-    db.create_all()
-
-    # FIX: properly unpack both id and name
-    outlets = [(outlet_id, outlet_name) for outlet_id, outlet_name in retrieve_outlets()]
-    #outlets = [name for name, name in retrieve_outlets()]
-    users_droplist = retrieve_offline_users() # to be used in users droplist
-    users= [u.staff_name for u in users_droplist]  # extract usernames
-    staff_name = current_user.staff_name
-    last_end_day = get_last_end_day_date()
-    if not current_user.feed_entries:
-        flash("System currently using this process,Please try again later.", "danger")
-        #return redirect(request.url)
-        return redirect(url_for("home"))
-    
-    each_outlet_disp_collction_summ = []
-    for outlet_id, outlet_name in outlets:
-
-        outlet_t = Outlet.query.filter_by(outlet_id=outlet_id).first()
-        outlet_col_id = outlet_t.outlet_id if outlet_t else None
-
-        #dispatched, collected = get_daily_dispatch_vers_collection(outlet_name)
-        inv_response = get_inventory(outlet_id)
-        inv_summary = inv_response.get_json()  # convert to dict
-
-        dispatched = inv_summary.get("dispatched", 0)
-        collected = inv_summary.get("collected", 0)
-
-        each_outlet_disp_collction_summ.append({
-            "outlet_id": outlet_col_id,
-            "outlet_name": outlet_name,
-            "dispatched": dispatched,
-            "collected": collected
-        })
-    #print(each_outlet_disp_collction_summ)
-
-
-    if request.method == "POST":
-        if request.form.get("cancelled") == "true":
-            flash("Submission cancelled by user.", "warning")
-            return redirect(request.url)
-
-        branch_id = request.form.get("outlet_id")  # comes from <select>
-        outlet_t = Outlet.query.filter_by(outlet_id=branch_id).first()
-        branchname = outlet_t.name if outlet_t else None
-
-
-        #branchname = request.form.get("outlet_name")
-        #outlet_t = Outlet.query.filter_by(name=branchname).first()
-        warehouse_id = outlet_t.outlet_id if outlet_t else None
-        #outlet_id = entry.get("outlet_id")
-        #warehouse_id = entry.get("outlet_id")
-
-        # --- Dispatch ---
-        if transaction_type == "dispatch":
-            good_crates = int(request.form.get("crates_sent") or 0)
-            if good_crates <= 0 or not staff_name:
-                flash("Invalid submission: crates must be > 0 and staff name required.", "danger")
-                return redirect(request.url)
-
-            query = db.session.query(WarehouseTransaction).filter_by(
-                wrhse_outlet_id=warehouse_id,
-                good_crates=good_crates,
-                worn_crates=0,
-                disposed_crates=0,
-                transaction_type="dispatch",
-                notes=branchname,
-                staff_name=staff_name
-            )
-            if last_end_day:
-                query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-            if query.first():
-                flash("⚠️ Duplicate dispatch record detected. Transaction discarded.", "warning")
-                return redirect(request.url)
-
-            db.session.add(WarehouseTransaction(
-                wrhse_outlet_id=warehouse_id,
-                good_crates=good_crates,
-                worn_crates=0,
-                disposed_crates=0,
-                transaction_type="dispatch",
-                notes=branchname,
-                staff_name=staff_name
-            ))
-            db.session.commit()
-            flash(f"Dispatch recorded: {good_crates} crates sent to {branchname} by {staff_name}.", "success")
-            return redirect(url_for("dashboard"))
-
-        # --- Collection ---
-        elif transaction_type == "collection":
-            good_crates = int(request.form.get("crates_collected") or 0)
-            if good_crates <= 0 or not staff_name:
-                flash("Invalid submission: crates must be > 0 and staff name required.", "danger")
-                return redirect(request.url)
-
-            query = db.session.query(WarehouseTransaction).filter_by(
-                wrhse_outlet_id=warehouse_id,
-                good_crates=good_crates,
-                worn_crates=0,
-                disposed_crates=0,
-                transaction_type="collection",
-                notes=branchname,
-                staff_name=staff_name
-            )
-            if last_end_day:
-                query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-            if query.first():
-                flash("⚠️ Duplicate collection record detected. Transaction discarded.", "warning")
-                return redirect(request.url)
-
-            db.session.add(WarehouseTransaction(
-                wrhse_outlet_id=warehouse_id,
-                good_crates=good_crates,
-                worn_crates=0,
-                disposed_crates=0,
-                transaction_type="collection",
-                notes=branchname,
-                staff_name=staff_name
-            ))
-            db.session.commit()
-            flash(f"Collection recorded: {good_crates} crates returned from {branchname} by {staff_name}.", "success")
-            return redirect(url_for("dashboard"))
-
-        # --- Multiple entries ---
-        elif transaction_type == "multiple":
-            # Get all outlets
-            #outlets = retrieve_outlets()
-            
-            #dispatched =0
-            #collected=0
-            # Build summary list
-            
-
-            #print(outlets)
-            #return render_template(
-            #    "collections_dispatch_grid_per_row.html",
-            #    #"collectionsDispatchForm.html",
-            #    outlets=outlets,
-            #    outlet_summ=each_outlet_disp_collction_summ
-            #)
-
-            completed_outlets = request.json or []  # Expect JSON payload
-
-            for entry in completed_outlets:
-                #branch_id = request.form.get("outlet_name")  # actually outlet_id now
-                #outlet_t = Outlet.query.filter_by(outlet_id=branch_id).first()
-                #branchname = outlet_t.name if outlet_t else None
-                #outlet_id  = outlet_t.outlet_id if outlet_t else None
-
-                outlet_id = entry.get("outlet_id")
-                outlet_name = entry.get("outlet_name")
-                dispatched = int(entry.get("dispatched", 0))
-                collected = int(entry.get("collected", 0))
-
-                # Dispatch duplicate check
-                if dispatched > 0:
-                    query = db.session.query(WarehouseTransaction).filter_by(
-                        wrhse_outlet_id=outlet_id,
-                        good_crates=dispatched,
-                        worn_crates=0,
-                        disposed_crates=0,
-                        transaction_type="dispatch",
-                        notes=outlet_name,
-                        staff_name=staff_name
-                    )
-                    if last_end_day:
-                        query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-                    if query.first():
-                        flash(f"⚠️ Duplicate dispatch record detected for {outlet_name}. Skipped.", "warning")
-                    else:
-                        db.session.add(WarehouseTransaction(
-                            wrhse_outlet_id=outlet_id,
-                            good_crates=dispatched,
-                            worn_crates=0,
-                            disposed_crates=0,
-                            transaction_type="dispatch",
-                            notes=outlet_name,
-                            staff_name=staff_name
-                        ))
-
-                # Collection duplicate check
-                if collected > 0:
-                    query = db.session.query(WarehouseTransaction).filter_by(
-                        wrhse_outlet_id=outlet_id,
-                        good_crates=collected,
-                        worn_crates=0,
-                        disposed_crates=0,
-                        transaction_type="collection",
-                        notes=outlet_name,
-                        staff_name=staff_name
-                    )
-                    if last_end_day:
-                        query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-                    if query.first():
-                        flash(f"⚠️ Duplicate collection record detected for {outlet_name}. Skipped.", "warning")
-                    else:
-                        db.session.add(WarehouseTransaction(
-                            wrhse_outlet_id=outlet_id,
-                            good_crates=collected,
-                            worn_crates=0,
-                            disposed_crates=0,
-                            transaction_type="collection",
-                            notes=outlet_name,
-                            staff_name=staff_name
-                        ))
-
-            db.session.commit()
-            flash("Multiple entries processed successfully.", "success")
-            return redirect(url_for("dashboard"))
-
-        else:
-            flash("Invalid transaction type.", "danger")
-            return redirect(request.url)
-
-    # Render correct template
-    if transaction_type == "multiple":
-        return render_template("unified_multi_record_entry_coll_n_disp_grid.html",
-                               outlets=outlets, users=users, transaction_type=transaction_type,outlet_summ=each_outlet_disp_collction_summ)
-    else:
-        return render_template("unified_single_record_entry.html",
-                               outlets=outlets, users=users, transaction_type=transaction_type)
-
-
-@app.route("/backup/record/<transaction_type>", methods=["GET", "POST"])
-@login_required
-def backup_record_transaction(transaction_type):
-    db.create_all()
-
-    outlets = [name for name, name in retrieve_outlets()]
-    users = retrieve_offline_users()
-
-    if request.method == "POST":
-        if request.form.get("cancelled") == "true":
-            flash("Submission cancelled by user.", "warning")
-            return redirect(request.url)
-
-        branchname = request.form.get("outlet_name")
-        outlet_t = Outlet.query.filter_by(name=branchname).first()
-        warehouse_id = outlet_t.outlet_id if outlet_t else None
-
-        # Determine transaction type based on which field is present
-        if "crates_sent" in request.form:
-            transaction_type = "dispatch"
-            try:
-                good_crates = int(request.form.get("crates_sent"))
-            except (TypeError, ValueError):
-                good_crates = 0
-        elif "crates_collected" in request.form:
-            transaction_type = "collection"
-            try:
-                good_crates = int(request.form.get("crates_collected"))
-            except (TypeError, ValueError):
-                good_crates = 0
-        else:
-            flash("Invalid submission: missing crates field.", "danger")
-            return redirect(request.url)
-
-        staff_name = current_user.staff_name
-        if good_crates <= 0 or not staff_name:
-            flash("Invalid submission: crates must be > 0 and staff name required.", "danger")
-            return redirect(request.url)
-
-        # Duplicate check
-        last_end_day = get_last_end_day_date()
-        query = db.session.query(WarehouseTransaction).filter_by(
-            wrhse_outlet_id=warehouse_id,
-            good_crates=good_crates,
-            worn_crates=0,
-            disposed_crates=0,
-            transaction_type=transaction_type,
-            notes=branchname,
-            staff_name=staff_name
-        )
-        if last_end_day:
-            query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-        existing = query.first()
-        if existing:
-            flash(f"⚠️ Duplicate {transaction_type} record detected. Transaction discarded.", "warning")
-            return redirect(request.url)
-
-        # Insert new record
-        new_record = WarehouseTransaction(
-            wrhse_outlet_id=warehouse_id,
-            good_crates=good_crates,
-            worn_crates=0,
-            disposed_crates=0,
-            transaction_type=transaction_type,
-            notes=branchname,
-            staff_name=staff_name
-        )
-        db.session.add(new_record)
-        db.session.commit()
-
-        flash(f"{transaction_type.capitalize()} recorded: {good_crates} crates for {branchname} by {staff_name}.", "success")
-        return redirect(url_for("dashboard"))
-
-    # Render template, passing outlets and users
-    return render_template("record_entry_unfied.html", outlets=outlets, users=users, transaction_type=transaction_type)
-
-@app.route("/collections_dispatch", methods=["GET"])
-def collections_dispatch():
-    # Get all outlets
-    outlets = retrieve_outlets()
-    #dispatched =0
-    #collected=0
-    # Build summary list
-    each_outlet_disp_collction_summ = []
-    for outlet_id, outlet_name in outlets:
-        #dispatched, collected = get_daily_dispatch_vers_collection(outlet_name)
-        inv_response = get_inventory(outlet_name)
-        inv_summary = inv_response.get_json()  # convert to dict
-
-        dispatched = inv_summary.get("dispatched", 0)
-        collected = inv_summary.get("collected", 0)
-
-        each_outlet_disp_collction_summ.append({
-            "outlet_id": outlet_id,
-            "outlet_name": outlet_name,
-            "dispatched": dispatched,
-            "collected": collected
-        })
-    print(each_outlet_disp_collction_summ)
-
-    #print(outlets)
-    return render_template(
-        "collections_dispatch_grid_per_row.html",
-        #"collectionsDispatchForm.html",
-        outlets=outlets,
-        outlet_summ=each_outlet_disp_collction_summ
-    )
-
-@app.route("/outlet_grid")
-def outlet_grid():
-    return render_template("outlet_grid.html")
-
-@app.route("/warehouse/add_entry", methods=["POST"])
-def add_entry():
-    data = request.get_json()
-    outlet_id = data.get("outlet_id")
-    dispatch_add = int(data.get("dispatch_add") or 0)
-    collection_add = int(data.get("collection_add") or 0)
-
-    outlet = Outlet.query.filter_by(id=outlet_id).first_or_404()
-
-    outlet.total_dispatches = (outlet.total_dispatches or 0) + dispatch_add
-    outlet.total_collections = (outlet.total_collections or 0) + collection_add
-
-    db.session.commit()
-
-    return jsonify({
-        "status": "success",
-        "outlet_id": outlet_id,
-        "total_dispatches": outlet.total_dispatches,
-        "total_collections": outlet.total_collections
-    })
 
 
 from itsdangerous import URLSafeTimedSerializer
@@ -965,502 +1337,48 @@ def forgot_password():
 
 @app.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
+    print("Form data:", request.form)
+    print("Token received:", token)
+
     try:
+        # Verify token (valid for 1 hour)
         user_id = serializer.loads(token, salt="password-reset", max_age=3600)
     except Exception:
-        flash("Invalid or expired reset link.", "danger")
-        return redirect(url_for("login"))
+        return jsonify({"status": "error", "message": "⚠️ Invalid or expired reset link."}), 400
 
     user = Users.query.get(user_id)
+    if not user:
+        return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
+
     if request.method == "POST":
-        new_password = request.form["password"]
+        print("tracing point 2237")
+        current_password = request.form.get("current_password")  # optional
+        new_password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+
+        # If current_password was provided, validate it
+        if current_password:
+            print("current_password:", current_password)
+            print("new_password:", new_password)
+            print("confirm_password:", confirm_password)
+            if not check_password_hash(user.password_hash, current_password):
+                return jsonify({"status": "error", "message": "⚠️ Current password is incorrect."}), 400
+
+        # Validate new password
+        if new_password != confirm_password:
+            return jsonify({"status": "error", "message": "⚠️ Passwords do not match."}), 400
+
+        if len(new_password) < 5:
+            return jsonify({"status": "error", "message": "⚠️ Password must be at least 5 characters long."}), 400
+
+        # Update securely
         user.password_hash = generate_password_hash(new_password)
         db.session.commit()
-        flash("Password updated successfully. Please log in.", "success")
-        return redirect(url_for("login"))
 
-    return render_template("reset_password.html")
+        return jsonify({"status": "success", "message": "✅ Password updated successfully."}), 200
 
-@app.route("/get_inventory/<int:outlet_id>")
-def get_inventory(outlet_id):
-    #@app.route("/get_inventory/<outlet>")
-    #def get_inventory(outlet):
-    #branch_id = request.form.get("outlet_id")  # comes from <select>
-    outlet_t = Outlet.query.filter_by(outlet_id=outlet_id).first()
-    outlet = outlet_t.name if outlet_t else None
-    #warehouse_id = outlet_t.outlet_id if outlet_t else None
-
-    #print(outlet_t) 
-    #print(outlet)
-    #from datetime import date
-    # Example query: total dispatched + collected for today
-
-    #dispatched,collected,recurrent_balance,variance
-    d, c, rb, v ,oid,sn,fd,nd,thr_lt_d,thr_lt_c,outlts_summ = get_daily_dispatch_vers_collection(outlet)
-
-
-    dispatched=d
-    collected=c
-    last_staff=sn
-    recurrent_balance=rb
-    variance=v
-    outlet_id=oid
-    night_forced=fd
-    night_dispatch=nd
-    thr_recent_dispatch=thr_lt_d
-    thr_recent_collection=thr_lt_c
-
-    #print("DEBUG dispatched:", dispatched, type(dispatched))
-    #print("DEBUG collected:", collected, type(collected))
-    #print("DEBUG recorded_by:", last_staff, type(last_staff))
-    #print("DEBUG recurrent_balance:", recurrent_balance, type(recurrent_balance))
-    #print("DEBUG variance:", variance, type(variance))
-    #print("DEBUG outlet_id:", outlet_id, type(outlet_id))
-    #print("DEBUG night_forced:", night_forced, type(night_forced))
-    #print("DEBUG night_dispatch:", night_dispatch, type(night_dispatch))
-    #print("DEBUG thr_recent_dispatch:", thr_recent_dispatch, type(thr_recent_dispatch))
-    #if thr_recent_dispatch:
-    #    print("DEBUG first dispatch entry:", thr_recent_dispatch[0], type(thr_recent_dispatch[0]))
-    #print("DEBUG thr_recent_collection:", thr_recent_collection, type(thr_recent_collection))
-
-    outlet_id = str(outlet_id) if outlet_id is not None else None
-    night_forced = int(night_forced) if night_forced is not None else 0
-    night_dispatch = int(night_dispatch) if night_dispatch is not None else 0
-
-    # Ensure serialization
-    #thr_recent_dispatch = [serialize_txn(txn) for txn in thr_recent_dispatch]
-    #thr_recent_collection = [serialize_txn(txn) for txn in thr_recent_collection]
-
-    payload = {
-        "dispatched": dispatched,
-        "collected": collected,
-        "recorded_by": last_staff,
-        "recurrent_balance": recurrent_balance,
-        "variance": variance,
-        "outlet_id": outlet_id,
-        "night_forced": night_forced,
-        "night_dispatch": night_dispatch,
-        "thr_recent_dispatch": thr_recent_dispatch,
-        "thr_recent_collection": thr_recent_collection
-    }
-    #print("DEBUG JSON string:", json.dumps(payload, indent=2))
-    return jsonify(payload)
-    #return {"dispatched": d, "collected": c, "recorded_by" :sn,"recent_dispatches": thr_lt_d,"recent_collections" :thr_lt_c}
-
-
-@app.route("/warehouse/<int:warehouse_id>/collections_summary")
-def collections_summary(warehouse_id):
-    last_end_day = get_last_end_day_date()
-    print(last_end_day)
-    # Base query for per-user totals
-    summary_query = (
-        db.session.query(
-        WarehouseTransaction.staff_name.label("staff_name"),
-        func.sum(
-            case(
-                (WarehouseTransaction.transaction_type == 'dispatch', WarehouseTransaction.good_crates),
-                else_=0
-            )
-        ).label("total_dispatches"),
-        func.sum(
-            case(
-                (WarehouseTransaction.transaction_type == 'collection', WarehouseTransaction.good_crates),
-                else_=0
-            )
-        ).label("total_collections"),
-
-       (
-        func.sum(
-            case(
-                (WarehouseTransaction.transaction_type == 'dispatch', WarehouseTransaction.good_crates),
-                else_=0
-            )
-        )
-        -
-        func.sum(
-            case(
-                (WarehouseTransaction.transaction_type == 'collection', WarehouseTransaction.good_crates),
-                else_=0
-            )
-        )
-        ).label("total_variances")
-        )
-     #.filter(WarehouseTransaction.wrhse_outlet_id == warehouse_id)
-        .group_by(WarehouseTransaction.staff_name)
-    )
-    #print(summary_query)
-
-
-    # Apply cutoff if available
-    if last_end_day:
-        summary_query = summary_query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-    summary = summary_query.all()
-    #print(summary)
-
-    data = []
-    for row in summary:
-        # Branch breakdown for this user
-        branch_query = (
-            db.session.query(
-                WarehouseTransaction.notes.label("branch"),
-                func.sum(
-                case(
-                (WarehouseTransaction.transaction_type == 'collection', WarehouseTransaction.good_crates),
-                else_=0
-                )).label("collections"),
-                func.sum(
-                case(
-                (WarehouseTransaction.transaction_type == 'dispatch', WarehouseTransaction.good_crates),
-                else_=0
-                )).label("dispatches"),
-                (
-                func.sum(
-                case(
-                    (WarehouseTransaction.transaction_type == 'dispatch', WarehouseTransaction.good_crates),
-                    else_=0
-                ))
-                -
-                func.sum(
-                case(
-                    (WarehouseTransaction.transaction_type == 'collection', WarehouseTransaction.good_crates),
-                    else_=0
-                ))
-                ).label("variances")
-                )
-                .filter(
-                WarehouseTransaction.staff_name == row.staff_name
-                )
-                .group_by(WarehouseTransaction.notes)
-        )
-
-        if last_end_day:
-            branch_query = branch_query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-        branch_data = branch_query.all()
-
-        data.append({
-            "user": row.staff_name,
-            "total_collections": row.total_collections or 0,
-            "total_dispatches": row.total_dispatches or 0,
-            "total_variances": row.total_variances or 0,
-            "branches": [
-                {
-                    "branch": b.branch,
-                    "collections": b.collections or 0,
-                    "dispatches": b.dispatches or 0,
-                    "variances": b.variances or 0
-                }
-                for b in branch_data
-            ]
-        })
-        #print(data)
-    return jsonify(data)
-
-#@app.route("/reconcile/<int:outlet_id>")
-@app.route("/reconcile/<outlet_name>")
-def reconcile_outlet(outlet_name):
-    #dispatched = db.session.query(db.func.sum(Dispatch.crates_sent)).filter_by(outlet_id=outlet_id).scalar() or 0
-    #collected = db.session.query(db.func.sum(Collection.crates_collected)).filter_by(outlet_id=outlet_id).scalar() or 0
-    
-    dispatched = db.session.query(db.func.sum(Dispatch.crates_sent)).filter_by(outlet_name=outlet_name).scalar() or 0
-    collected = db.session.query(db.func.sum(Collection.crates_collected)).filter_by(outlet_name=outlet_name).scalar() or 0
-
-    
-    variance = dispatched - collected
-    content = f"""
-    <h2>Reconciliation for Outlet {outlet_name}</h2>
-    <table class="table table-bordered">
-      <tr><th>Dispatched</th><td>{dispatched}</td></tr>
-      <tr><th>Collected</th><td>{collected}</td></tr>
-      <tr class="table-{ 'danger' if variance>0 else 'success' }">
-        <th>Variance</th><td>{variance}</td>
-      </tr>
-    </table>
-    {home_button}
-    """
-    return render_template_string(layout, content=content)
-
-
-@app.route("/reconciliation")
-def reconciliation():
-    #not in any use
-    # Get the most recent EndDayLog entry
-    last_log = (
-        EndDayLog.query
-        .order_by(EndDayLog.created_at.desc())
-        .first()
-    )
-
-    # Wrap it in a list so the Jinja loop works
-    reconciliations = [last_log] if last_log else []
-    print("DEBUG: reconciliations =", reconciliations)
-
-    return render_template("dashboard.html", reconciliations=reconciliations)
-
-def get_last_end_day_date():
-    last_log = (
-        db.session.query(EndDayLog.created_at)
-        .order_by(EndDayLog.created_at.desc())
-        .first()
-    )
-    return last_log[0] if last_log else None
-
-def total_daily_crates_dispatched():
-    last_end_day = get_last_end_day_date()
-
-    query = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.transaction_type == 'dispatch')
-
-    if last_end_day:
-        query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-    total_dispatched = query.scalar() or 0
-    return total_dispatched
-
-def total_daily_crates_collected():
-    last_end_day = get_last_end_day_date()
-
-    query = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-            .filter(WarehouseTransaction.transaction_type == 'collection')
-    
-    if last_end_day:
-          query = query.filter(WarehouseTransaction.timestamp > last_end_day)
-
-    total_collected = query.scalar() or 0
-    return total_collected
-
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    # Ensure at least one warehouse exists
-    warehouse = Warehouse.query.first()
-    if not warehouse:
-        warehouse = Warehouse(
-            name="Tgl Warehouse",
-            whrsh_outlets_id=1,
-            good_crates=0,
-            worn_crates=0,
-            disposed_crates=0,
-            dispatched_crates=0,
-            collected_crates=0,
-            total_crates=0
-        )
-        db.session.add(warehouse)
-        db.session.commit()
-        flash("Default warehouse created: Tgl Warehouse", "info")
-
-
-    total_collected_for_all = total_daily_crates_collected()
-    total_dispatched_for_all = total_daily_crates_dispatched()
-    recent_stcktake_crate = recent_wrhse_crates_stocktake_count()
-
-    total_available = recent_stcktake_crate - total_dispatched_for_all + total_collected_for_all
-    variance = total_collected_for_all - total_dispatched_for_all
-    denominator = recent_stcktake_crate
-    available_pct = (total_available / denominator * 100) if denominator > 0 else 0
-
-    warehouse_summary = {
-        "name": warehouse.name,
-        "last_stocktake": recent_stcktake_crate,
-        "total_available": total_available,
-        "total_dispatched": total_dispatched_for_all,
-        "total_collected": total_collected_for_all,
-        "variance": variance,
-        "available_pct": round(available_pct, 2)
-    }
-
-    #users = retrieve_offline_users()
-    users_droplist = retrieve_offline_users() # to be used in users droplist
-    users = [u.staff_name for u in users_droplist]  # extract usernames
-    last_rec = EndDayLog.query.order_by(EndDayLog.created_at.desc()).first()
-    reconciliations = EndDayLog.query.order_by(EndDayLog.created_at.desc()).limit(20).all()
-
-    most_recent_stocktake = WarehouseTransaction.query\
-        .filter_by(transaction_type="stocktake", wrhse_outlet_id=1)\
-        .order_by(WarehouseTransaction.timestamp.desc()).first()
-
-    if most_recent_stocktake:
-        last_stocktake_time = most_recent_stocktake.timestamp.strftime("%d %B %Y")
-        warehouse_summary_text = f"Warehouse Summary Based On : Last Stocktake : <span style='color:blue;'>{last_stocktake_time}</span>"
-    else:
-        warehouse_summary_text = "<span style='color:red;'>Warehouse Summary : No stocktake transactions found</span>"
-
-    rows = ""
-    # Outlets with transactions
-    dispatched_outlets = db.session.query(WarehouseTransaction.wrhse_outlet_id).distinct().all()
-    outlet_ids = [id for (id,) in dispatched_outlets]
-    outlet_names = db.session.query(Outlet.name).filter(Outlet.outlet_id.in_(outlet_ids)).all()
-    all_outlets = [name for (name,) in outlet_names]
-
-    for outlet_name in all_outlets:
-
-      #dispatched,collected,recurrent_balance,variance
-      d, c, rb, v ,oid,sn ,fd,nd,thr_lt_d,thr_lt_c,outlts_summ = get_daily_dispatch_vers_collection(outlet_name)
-      collected = c
-      total_dispatched = d
-      # Recurrent balance: all-time (no cutoff filter)
-      recurrent_balance = rb
-      variance = v
-      todays_dispatch = nd
-      uncollected_yesterday = fd
-
-      #color = "table-danger" if variance > 0 else "table-success"
-      color = "table-danger" if total_dispatched > 0 else "table-success"
-      #rows += f"<tr><td>{outlet_name}</td><td>{recurrent_balance}</td><td>{uncollected_yesterday}</td><td>{todays_dispatch}</td><th>{total_dispatched}</th><td>{collected}</td><td class='{color}'>{variance}</td><td>""</td><td>""</td></tr>"
-      rows += f"<tr><td>{outlet_name}</td><td>{recurrent_balance}</td><td>{uncollected_yesterday}</td><td>{todays_dispatch}</td><td class='{color}'>{total_dispatched}</td><td></td><td>{collected}</td><td>""</td><td>""</td></tr>"
-
-    #print("Warehouse object:", warehouse)
-    #print("Warehouse.id:", warehouse.id if warehouse else None)
-    #print("Warehouse.whrsh_outlets_id:", warehouse.whrsh_outlets_id if warehouse else None)
-    staff_name = current_user.staff_name
-    print(staff_name)
-    return render_template(
-        "dashboard.html",
-        warehouse=warehouse,
-        rows=rows,
-        warehouse_summary=warehouse_summary,
-        warehouse_summary_text=warehouse_summary_text,
-        #outlet_stats=outlet_stats,
-        users=users,
-        staff_name=staff_name,
-        last_rec=last_rec,
-        reconciliations=reconciliations,
-        app_auto_collections=total_collected_for_all,
-        app_auto_dispatches=total_dispatched_for_all
-    )
-
-def get_all_outlets_collections_summary():
-    """
-    Loop through all outlets with collections > 0 since last cutoff
-    and return their dispatch/collection summaries.
-    """
-    last_end_day = get_last_end_day_date()
-
-    # Find all outlet names that had collections > 0 today
-    outlets_with_collections = db.session.query(WarehouseTransaction.notes)\
-        .filter(WarehouseTransaction.transaction_type == 'collection')
-
-    if last_end_day:
-        outlets_with_collections = outlets_with_collections.filter(WarehouseTransaction.timestamp > last_end_day)
-
-    # Group by outlet name and only keep those with sum > 0
-    outlets_with_collections = outlets_with_collections.group_by(WarehouseTransaction.notes)\
-        .having(db.func.sum(WarehouseTransaction.good_crates) > 0).all()
-
-    # Loop through each outlet and channel through your existing function
-    summaries = []
-    for outlet_row in outlets_with_collections:
-        outlet_name = outlet_row[0]  # notes column
-        data = get_daily_dispatch_vers_collection(outlet_name)
-        summaries.append({
-            "outlet_name": outlet_name,
-            "summary": data
-        })
-
-    return summaries
-
-@app.route("/get_user_collections_summary")
-def get_user_collections_summary():
-    summaries = get_all_outlets_collections_summary()
-    return jsonify(summaries)
-
-def get_daily_dispatch_vers_collection(outlet_name):
-    """
-    Calculate collected and dispatched crates for a given outlet
-    since the last end day cutoff, plus recent records.
-    """
-    last_end_day = get_last_end_day_date()
-
-    # Base queries
-    last_staff_query =db.session.query(WarehouseTransaction.staff_name)\
-        .filter(
-        WarehouseTransaction.notes == outlet_name,
-        WarehouseTransaction.transaction_type.in_(["collection", "dispatch"])
-        )
-    
-    collected_query = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'collection')
-
-    dispatched_query = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'dispatch')
-
-    today_forced_dispatched_query = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'dispatch',
-                WarehouseTransaction.staff_name.like('Sys Auto%'))
-
-    today_night_shift_dispatch_query = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'dispatch',
-                WarehouseTransaction.staff_name.notlike('Sys Auto%'))
-
-    # Apply cutoff if it exists
-    if last_end_day:
-        collected_query = collected_query.filter(WarehouseTransaction.timestamp > last_end_day)
-        dispatched_query = dispatched_query.filter(WarehouseTransaction.timestamp > last_end_day)
-        today_forced_dispatched_query = today_forced_dispatched_query.filter(WarehouseTransaction.timestamp > last_end_day)
-        today_night_shift_dispatch_query = today_night_shift_dispatch_query.filter(WarehouseTransaction.timestamp > last_end_day)
-        last_staff_query =last_staff_query.filter(WarehouseTransaction.timestamp > last_end_day)
-        
-        # Recent dispatches (limit 5)
-        thr_recent_dispatch = db.session.query(WarehouseTransaction)\
-            .filter(WarehouseTransaction.notes == outlet_name,
-                    WarehouseTransaction.transaction_type == 'dispatch',
-                    WarehouseTransaction.timestamp > last_end_day)\
-            .order_by(WarehouseTransaction.timestamp.desc())\
-            .limit(3).all() #truck normally visit maximum of 2 per outlets
-
-        # Recent collections (limit 5)
-        thr_recent_collection = db.session.query(WarehouseTransaction)\
-            .filter(WarehouseTransaction.notes == outlet_name,
-                    WarehouseTransaction.transaction_type == 'collection',
-                    WarehouseTransaction.timestamp > last_end_day)\
-            .order_by(WarehouseTransaction.timestamp.desc())\
-            .limit(3).all() #truck normally visit maximum of 2 per outlets
-    else:
-        thr_recent_dispatch = []
-        thr_recent_collection = []
-
-    # Convert to list of dicts
-    thr_recent_dispatch = [serialize_txn(txn) for txn in thr_recent_dispatch]
-    thr_recent_collection = [serialize_txn(txn) for txn in thr_recent_collection]
-    #print(thr_recent_dispatch)
-    # Scalars
-    collected = collected_query.scalar() or 0
-    dispatched = dispatched_query.scalar() or 0
-    night_forced = today_forced_dispatched_query.scalar() or 0
-    night_dispatch = today_night_shift_dispatch_query.scalar() or 0
-    # Fetch the first row
-    row = last_staff_query.first()
-    last_staff = row[0] if row else None
-
-    recurrent_collected = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'collection').scalar() or 0
-
-    recurrent_dispatched = db.session.query(db.func.sum(WarehouseTransaction.good_crates))\
-        .filter(WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'dispatch').scalar() or 0
-
-    outlet_id = db.session.query(db.func.max(WarehouseTransaction.wrhse_outlet_id))\
-        .filter(WarehouseTransaction.notes == outlet_name).scalar() or 0
-
-    recurrent_balance = recurrent_dispatched - recurrent_collected
-    variance = dispatched - collected
-    
-
-    # Build user collections summary
-    user_collections_summary = {
-        "user": last_staff,
-        "total": collected,
-        "collections": thr_recent_collection
-    }
-    #print("dispathed" , dispatched,"collected",collected,"variance",variance,"Recorded",last_staff,"forced_dispatch",night_forced,"normal_dispatch",night_dispatch,"thr_recent_dispatch",thr_recent_dispatch,"thr_recent_collection",thr_recent_collection)
-    return dispatched,collected,recurrent_balance,variance,outlet_id,last_staff,night_forced,night_dispatch,thr_recent_dispatch,thr_recent_collection,user_collections_summary
+    # For GET requests, render the reset page with token
+    return render_template("reset_password.html", token=token)
 
 def serialize_txn(txn):
     return {
@@ -1469,730 +1387,143 @@ def serialize_txn(txn):
         "staff_name": txn.staff_name
     }
 
-
-def build_user_outlet_summary(outlet_names):
-    #outlets = db.session.query(Outlet).all()
-    #outlet_names = [(outlet_name) for outlet_id, outlet_name in retrieve_outlets()]
-    users = {}
-    grand_total_dispatched = 0
-    grand_total_collected = 0
-
-    for outlet_name in outlet_names:
-        # All dispatches since cutoff
-        all_dispatches = db.session.query(WarehouseTransaction)\
-            .filter(
-                WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'dispatch',
-                WarehouseTransaction.timestamp > get_last_end_day_date()
-            ).order_by(WarehouseTransaction.timestamp.desc()).all()
-
-        # All collections since cutoff
-        all_collections = db.session.query(WarehouseTransaction)\
-            .filter(
-                WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'collection',
-                WarehouseTransaction.timestamp > get_last_end_day_date()
-            ).order_by(WarehouseTransaction.timestamp.desc()).all()
-
-        dispatched_total = sum(txn.good_crates for txn in all_dispatches)
-        collected_total = sum(txn.good_crates for txn in all_collections)
-        variance = dispatched_total - collected_total
-
-        # Pick staff from most recent transaction
-        last_staff = all_dispatches[0].staff_name if all_dispatches else (
-            all_collections[0].staff_name if all_collections else "Unknown"
-        )
-
-        if last_staff not in users:
-            users[last_staff] = {
-                "name": last_staff,
-                "outlets": [],
-                "total_dispatched": 0,
-                "total_collected": 0
-            }
-
-        users[last_staff]["outlets"].append({
-            "name": outlet_name,
-            "dispatched": dispatched_total,
-            "collected": collected_total,
-            "variance": variance,
-            "dispatches": [serialize_txn(txn) for txn in all_dispatches],
-            "collections": [serialize_txn(txn) for txn in all_collections]
-        })
-
-        users[last_staff]["total_dispatched"] += dispatched_total
-        users[last_staff]["total_collected"] += collected_total
-
-        # Update grand totals
-        grand_total_dispatched += dispatched_total
-        grand_total_collected += collected_total
-
-    return list(users.values()), grand_total_dispatched, grand_total_collected, datetime.now()
-
-
-@app.route("/end_of_summary_print")
-def end_of_summary_print():
-    # Extract outlets from Outlet table
-    #outlet_names = [o.name for o in db.session.query(Outlet).all()]
-    #outlet_t = Outlet.query.filter_by(outlet_id=outlet_id).first()
-    #outlet_t = db.session.query(Outlet).all()
-    #outlet_names = outlet_t.name if outlet_t else None
-    outlet_names = [(outlet_name) for outlet_id, outlet_name in retrieve_outlets()]
-    #print (outlet_names)
-    # Build summary
-    #users = build_user_outlet_summary(outlet_names)
-    # Unpack the tuple
-    users, grand_total_dispatched, grand_total_collected, report_time = build_user_outlet_summary(outlet_names)
-
-    print("Users type:", type(users))
-    print("First element type:", type(users[0]))
-    print("First element:", users[0])
-
-
-    # Compute grand totals
-    #grand_total_dispatched = sum(u["total_dispatched"] for u in users)
-    #grand_total_collected = sum(u["total_collected"] for u in users)
-    # Now users is a list of dicts
-    grand_total_dispatched = sum(user["total_dispatched"] for user in users)
-    grand_total_collected = sum(user["total_collected"] for user in users)
-
-    # Pass everything to template
-    return render_template(
-        "end_of_summary_print.html",
-        users=users,
-        grand_total_dispatched=grand_total_dispatched,
-        grand_total_collected=grand_total_collected,
-        report_time=datetime.now(),
-        warehouse_id=1 #"Main Warehouse"  # or dynamic ID
-    )
-
-def build_matrix_for_outlet_daily_summary_printout():
-    outlet_names = [o.name for o in db.session.query(Outlet).all()]
-    users_set = set()
-    outlet_rows = []
-    grand_totals_dispatch = {}
-    grand_totals_collect = {}
-    total_dispatch_all = 0
-    total_collect_all = 0
-
-    for outlet_name in outlet_names:
-        all_dispatches = db.session.query(WarehouseTransaction)\
-            .filter(
-                WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'dispatch',
-                WarehouseTransaction.timestamp > get_last_end_day_date()
-            ).all()
-
-        all_collections = db.session.query(WarehouseTransaction)\
-            .filter(
-                WarehouseTransaction.notes == outlet_name,
-                WarehouseTransaction.transaction_type == 'collection',
-                WarehouseTransaction.timestamp > get_last_end_day_date()
-            ).all()
-
-        dispatched_total = sum(txn.good_crates for txn in all_dispatches)
-        collected_total = sum(txn.good_crates for txn in all_collections)
-
-        user_dispatch = {}
-        user_collect = {}
-
-        for txn in all_dispatches:
-            users_set.add(txn.staff_name)
-            user_dispatch[txn.staff_name] = user_dispatch.get(txn.staff_name, 0) + txn.good_crates
-            grand_totals_dispatch[txn.staff_name] = grand_totals_dispatch.get(txn.staff_name, 0) + txn.good_crates
-
-        for txn in all_collections:
-            users_set.add(txn.staff_name)
-            user_collect[txn.staff_name] = user_collect.get(txn.staff_name, 0) + txn.good_crates
-            grand_totals_collect[txn.staff_name] = grand_totals_collect.get(txn.staff_name, 0) + txn.good_crates
-
-        if dispatched_total+collected_total > 0:
-            outlet_rows.append({
-                "name": outlet_name,
-                "total_dispatched": dispatched_total,
-                "total_collected": collected_total,
-                "user_dispatch": user_dispatch,
-                "user_collect": user_collect
-            })
-
-        total_dispatch_all += dispatched_total
-        total_collect_all += collected_total
-
-    return outlet_rows, sorted(users_set), grand_totals_dispatch, grand_totals_collect, total_dispatch_all, total_collect_all
-
-#@app.route("/warehouse/<int:warehouse_id>/collections_summary")
-@app.route("/end_of_summary_print_matrix")
-def daily_outlet_matrix_printout():
-    outlet_rows, users, grand_totals_dispatch, grand_totals_collect, total_dispatch_all, total_collect_all = build_matrix_for_outlet_daily_summary_printout()
-
-    #return render_template(
-    #    "end_of_summary_print_matrix.html",
-    #    outlet_rows=outlet_rows,
-    #    users=users,
-    #    grand_totals_dispatch=grand_totals_dispatch,
-    #    grand_totals_collect=grand_totals_collect,
-    #    total_dispatch_all=total_dispatch_all,
-    #    total_collect_all=total_collect_all,
-    #    report_time=datetime.now(),
-    #    warehouse_id=1 #"Main Warehouse"
-    #)
-    return jsonify({
-        "outlet_rows": outlet_rows,
-        "users": users,
-        "grand_totals_dispatch": grand_totals_dispatch,
-        "grand_totals_collect": grand_totals_collect,
-        "total_dispatch_all": total_dispatch_all,
-        "total_collect_all": total_collect_all,
-        "report_time": datetime.now().isoformat(),
-        "warehouse_id": 1
-    })
-
-@app.route("/end_of_day_closure/<date>")
-def end_of_day_closure(date):
-    outlet_rows, users, grand_totals_dispatch, grand_totals_collect, total_dispatch_all, total_collect_all = build_matrix_for_outlet_daily_summary_printout()
-
-    # fetch outlet_rows, users, totals, etc.
-    report_time = datetime.now()
-    return render_template(
-        "end_of_day_closure.html",
-        warehouse_id=1,
-        outlet_rows=outlet_rows,
-        users=users,
-        total_dispatch_all=total_dispatch_all,
-        total_collect_all=total_collect_all,
-        grand_totals_dispatch=grand_totals_dispatch,
-        grand_totals_collect=grand_totals_collect,
-        report_time=report_time,
-        closure_date=date
-    )
-
-
-@app.route("/download_pdf/<date>")
-def download_pdf(date):
-    outlet_rows, users, grand_totals_dispatch, grand_totals_collect, total_dispatch_all, total_collect_all = build_matrix_for_outlet_daily_summary_printout()
-
-    # Prepare your data
-    report_time = datetime.now()
-
-  # Render the closure report HTML
-    html = render_template(
-        "end_of_day_closure.html",
-        warehouse_id=1,
-        outlet_rows=outlet_rows,
-        users=users,
-        total_dispatch_all=total_dispatch_all,
-        total_collect_all=total_collect_all,
-        grand_totals_dispatch=grand_totals_dispatch,
-        grand_totals_collect=grand_totals_collect,
-        report_time=report_time,
-        closure_date=date
-    )
-
-    # Generate PDF (wkhtmltopdf must be installed on the server hosting this app)
-    pdf = pdfkit.from_string(html, False)
-
-    return Response(
-        pdf,
-        mimetype="application/pdf",
-        headers={"Content-Disposition": f"attachment;filename=closure_{date}.pdf"}
-    )
-
-@app.route("/warehouse/<int:id>/endday", methods=["POST"])
-def endday(id):
-    warehouse = Warehouse.query.filter_by(id=id).first_or_404()
-
-    dispatched_crates = request.form.get("app_dispatched")
-    physical_crates = request.form.get("physical_crates")
-    app_collections = request.form.get("app_collections")
-    variance = request.form.get("variance")
-    #staff_name = request.form.get("staff_name")
-    staff_name = current_user.staff_name
-    print("trying to fecth html user",{staff_name})
-    remarks = request.form.get("remarks")
-    overwrite = request.form.get("overwrite")
-    new_end_day = request.form.get("new_end_day")
-
-    payload = None  # ensure defined
-
-    # Case 1: Force new entry
-    if new_end_day:
-        print("new_end_day logic detected")
-        new_log = EndDayLog(
-            warehouse_id=warehouse.whrsh_outlets_id,
-            dispatched_crates=dispatched_crates,
-            physical_crates=physical_crates,
-            app_collections=app_collections,
-            variance=variance,
-            staff_name=staff_name,
-            remarks=remarks
-        )
-        db.session.add(new_log)
-        db.session.commit()
-        payload = {"status": "inserted", "message": "New End of Day recorded successfully"}
-
-    else:
-        # Case 2: Check if today’s record exists
-        last_log = (
-            EndDayLog.query
-            .filter(cast(EndDayLog.created_at, Date) == date.today())
-            .order_by(EndDayLog.created_at.desc())
-            .first()
-        )
-
-        if last_log:
-            print("last_log detected")
-            if overwrite:
-                print("endday overwrite")
-                # Overwrite existing record
-                last_log.dispatched_crates = dispatched_crates
-                last_log.physical_crates = physical_crates
-                last_log.app_collections = app_collections
-                last_log.variance = variance
-                last_log.staff_name = staff_name
-                last_log.remarks = remarks
-                db.session.commit()
-                payload = {"status": "updated", "message": "End of Day overwritten successfully"}
-            else:
-                # Return exists response with comparison
-                new_values = {
-                    "dispatched_crates": dispatched_crates,
-                    "physical_crates": physical_crates,
-                    "app_collections": app_collections,
-                    "variance": variance,
-                    "staff_name": staff_name,
-                    "remarks": remarks
-                }
-                payload = {
-                    "status": "exists",
-                    "last_log": {
-                        "physical_crates": last_log.physical_crates,
-                        "app_collections": last_log.app_collections,
-                        "variance": last_log.variance,
-                        "staff_name": last_log.staff_name,
-                        "remarks": last_log.remarks
-                    },
-                    "new_values": new_values
-                }
-        else:
-            # Case 3: No record today, insert new
-            new_log = EndDayLog(
-                warehouse_id=warehouse.whrsh_outlets_id,
-                dispatched_crates=dispatched_crates,
-                physical_crates=physical_crates,
-                app_collections=app_collections,
-                variance=variance,
-                staff_name=staff_name,
-                remarks=remarks
-            )
-            db.session.add(new_log)
-            db.session.commit()
-            payload = {"status": "inserted", "message": "End of Day recorded successfully"}
-
-    daily_outlet_matrix_printout()
-    run_end_day_auto_reconcile_procedure()  # optional
-    return jsonify(payload)
-
-def run_end_day_auto_reconcile_procedure():
-    print("runing auto end day closure")
-    # Step 1: Get cutoff window (last two end_day_logs)
-    recent_logs = db.session.query(EndDayLog.created_at)\
-        .order_by(EndDayLog.created_at.desc())\
-        .limit(2).all()
-    if len(recent_logs) < 2:
-        return []
-
-    min_created_at = min(log.created_at for log in recent_logs)
-    max_created_at = max(log.created_at for log in recent_logs)
-
-    # Step 2: Aggregate dispatch/collection per outlet
-    results = db.session.query(
-        Outlet.name.label("outlet_name"),
-        WarehouseTransaction.wrhse_outlet_id,
-        func.sum(
-            case((WarehouseTransaction.transaction_type == 'dispatch',
-                  WarehouseTransaction.good_crates), else_=0)
-        ).label("total_dispatch"),
-        func.sum(
-            case((WarehouseTransaction.transaction_type == 'collection',
-                  WarehouseTransaction.good_crates), else_=0)
-        ).label("total_collection")
-    ).join(Outlet, Outlet.outlet_id == WarehouseTransaction.wrhse_outlet_id)\
-     .filter(WarehouseTransaction.timestamp.between(min_created_at, max_created_at))\
-     .group_by(Outlet.name, WarehouseTransaction.wrhse_outlet_id)\
-     .order_by(Outlet.name).all()
-
-    summary = []
-    # Step 3: Apply rules per outlet
-    for row in results:
-        variance = (row.total_dispatch or 0) - (row.total_collection or 0)
-        action_taken = "No variance"
-
-        if variance > 0:
-            if (row.total_collection or 0) == 0:
-                # Case A: No collection → zero out previous dispatch and add new transaction
-                latest_dispatch = db.session.query(WarehouseTransaction)\
-                    .filter(WarehouseTransaction.wrhse_outlet_id == row.wrhse_outlet_id,
-                            WarehouseTransaction.transaction_type == 'dispatch')\
-                    .order_by(WarehouseTransaction.timestamp.desc()).first()
-
-                if latest_dispatch:
-                    # Zero out the previous dispatch
-                    latest_dispatch.good_crates = 0
-                    db.session.commit()
-
-                    # Create a new transaction to carry variance forward
-                    new_tx = WarehouseTransaction(
-                        wrhse_outlet_id=row.wrhse_outlet_id,
-                        transaction_type='dispatch',
-                        good_crates=variance,
-                        notes=row.outlet_name,
-                        timestamp=datetime.now(),
-                        staff_name="Sys Auto‑CarryForward"
-                    )
-                    db.session.add(new_tx)
-                    db.session.commit()
-
-                action_taken = "Created new transaction and zeroed previous dispatch"
-
-            elif (row.total_collection or 0) > 0:
-                # Case B: Partial collection → adjust dispatch and create new entry
-                latest_dispatch = db.session.query(WarehouseTransaction)\
-                    .filter(WarehouseTransaction.wrhse_outlet_id == row.wrhse_outlet_id,
-                            WarehouseTransaction.transaction_type == 'dispatch')\
-                    .order_by(WarehouseTransaction.timestamp.desc()).first()
-
-                if latest_dispatch:
-                    latest_dispatch.good_crates -= variance
-                    db.session.commit()
-
-                    new_tx = WarehouseTransaction(
-                        wrhse_outlet_id=row.wrhse_outlet_id,
-                        transaction_type='dispatch',
-                        good_crates=variance,
-                        notes=row.outlet_name,
-                        timestamp=datetime.now(),
-                        staff_name="Sys Auto‑Adjust"
-                    )
-                    db.session.add(new_tx)
-                    db.session.commit()
-                action_taken = "Adjusted dispatch and created new entry"
-
-        summary.append({
-            "outlet_name": row.outlet_name,
-            "wrhse_outlet_id": row.wrhse_outlet_id,
-            "total_dispatch": row.total_dispatch or 0,
-            "total_collection": row.total_collection or 0,
-            "variance": variance,
-            "action_taken": action_taken
-        })
-    #print(summary)
-    # Step 4: Export summary to PDF
-    #export_summary_to_pdf(summary) #currently not using
-
-    return summary
-
-@app.route("/reconciliations/<int:offset>")
-def get_reconciliations(offset=0):
-    logs = (
-        EndDayLog.query
-        .order_by(EndDayLog.created_at.desc())
-        .offset(offset)
-        .limit(20)
-        .all()
-    )
-
-    # Convert to JSON-friendly dicts
-    data = []
-    for rec in logs:
-        data.append({
-            "created_at": rec.created_at.strftime("%d %B %Y"),
-            "dispatched_crates": rec.dispatched_crates,
-            "app_collections": rec.app_collections,
-            "physical_crates": rec.physical_crates,
-            "staff_name": rec.staff_name,
-            "variance": rec.variance,
-            "performance": round(
-                (rec.physical_crates / (rec.app_collections if rec.app_collections > 0 else 1)) * 100, 2
-            )
-        })
-    return {"reconciliations": data}
-
-def export_summary_to_pdf(summary):
-    filename = f"end_day_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    c = canvas.Canvas(filename, pagesize=A4)
-    width, height = A4
-
-    # Header
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, "Crate Tracker - End Day Summary Report")
-
-    c.setFont("Helvetica", 10)
-    c.drawString(50, height - 70, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Table-like output
-    y = height - 100
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, y, "Outlet")
-    c.drawString(200, y, "Dispatch")
-    c.drawString(280, y, "Collection")
-    c.drawString(370, y, "Variance")
-    c.drawString(450, y, "Action Taken")
-    y -= 20
-
-    c.setFont("Helvetica", 10)
-    for row in summary:
-        c.drawString(50, y, row['outlet_name'])
-        c.drawString(200, y, str(row['total_dispatch']))
-        c.drawString(280, y, str(row['total_collection']))
-        c.drawString(370, y, str(row['variance']))
-        c.drawString(450, y, row['action_taken'])
-        y -= 20
-        if y < 100:  # new page if needed
-            c.showPage()
-            y = height - 50
-            c.setFont("Helvetica", 10)
-
-    # Footer with signature line
-    c.setFont("Helvetica-Oblique", 10)
-    c.drawString(50, 80, "System generated by Crate Tracker")
-    c.line(50, 60, 250, 60)
-    c.drawString(50, 50, "Manager Signature")
-
-    c.save()
-    print(f"Summary PDF generated: {filename}")
-
-@app.route("/app_auto_collections")
-def get_app_collections():
-    # Example: calculate from EndDayLog or Warehouse
-    latest_value = db.session.query(db.func.sum(EndDayLog.app_collections)).scalar() or 0
-    print("DEBUG: app_collections =", latest_value) 
-    return {"app_collections": latest_value}
-
-@app.route("/app_auto_dispatches")
-def get_app_dispatches():
-    # Example: calculate from EndDayLog or Warehouse
-    #latest_value = db.session.query(db.func.sum(EndDayLog.app_collections)).scalar() or 0
-    latest_value =total_daily_crates_dispatched()
-    print("DEBUG: app_dispatched =", latest_value) 
-    return {"app_dispatched": latest_value}
-
-
-@app.route("/warehouse/<int:warehouse_id>")
-def warehouse_detail(warehouse_id):
-  warehouse ={"id": warehouse_id, "name": "Main Warehouse", "collection_total": 10}
-  rows_html = "<tr><td>Outlet A</td><td>20</td><td>15</td><td>5</td></tr>"
-  return render_template("warehouse.html", warehouse=warehouse, rows=rows_html)
-
-
-def recent_wrhse_crates_stocktake_count():
-  recent_stcktake_crate=0
-
-  most_recent_stocktake = (
-            WarehouseTransaction.query
-            .filter_by(transaction_type="stocktake", wrhse_outlet_id=1)
-            .order_by(WarehouseTransaction.timestamp.desc())
-            .first()
-        )
-
-  if most_recent_stocktake:
-      recent_stcktake_crate = most_recent_stocktake.good_crates
-      #print("Most recent stocktake good_crates for outlet 1001 =", recent_stcktake_crate)
-  #else:
-  #    print("No stocktake transactions found for outlet 1001.")
-  return recent_stcktake_crate       
-
-def validate_staff_selection(field_name="staff_name"):
-    """
-    Validate that the submitted staff_name exists in the User table.
-    Returns None if valid, or a redirect response if invalid.
-    """
-    staff_name = request.form.get(field_name)
-
-    # Blank check
-    if not staff_name:
-        flash("Please select an existing staff member.")
-        return redirect(request.url)
-
-    # Existence check
-    user_exists = db.session.query(Users).filter_by(staff_name=staff_name).first()
-    if not user_exists:
-        flash(f"User '{staff_name}' does not exist. Please choose a valid staff member.")
-        return redirect(request.url)
-
-    # Valid → continue
-    return None
-
-#@app.route('/warehouse/<int:warehouse_id>/stocktake', methods=['POST'])
-@app.route('/warehouse/<int:whrsh_outlets_id>/stocktake', methods=['POST']) #whrsh_outlets_id
-def warehouse_stocktake(whrsh_outlets_id):
-  #def warehouse_stocktake(warehouse_id):
-    #warehouse = Warehouse.query.get_or_404(warehouse_id)
-    #print("DEBUG: whrsh_outlets_id =",whrsh_outlets_id)
-    #warehouse_id = Warehouse.query.get_or_404(whrsh_outlets_id)
-
-    #warehouse_id = whrsh_outlets_id
-    warehouse_id = 1
-    good_crates = int(request.form.get('good_crates', 0))
-    worn_crates = int(request.form.get('worn_crates', 0))
-    disposed_crates = int(request.form.get('disposed_crates', 0))
-    transaction_type ="stocktake"
-    #description = request.form.get('description', '')
-    #ware_hse_name = warehouse_id
-  
-    # Query the Warehouse table where whrsh_outlets_id matches
-    warehouse = Warehouse.query.filter_by(whrsh_outlets_id=warehouse_id).first()
-
-    if warehouse:
-        ware_hse_name = warehouse.name
-        print("DEBUG: warehsename =", ware_hse_name)
-    else:
-        print("No warehouse found for outlet_id =", warehouse_id)
-        print("DEBUG: warehsename =", ware_hse_name)
-
-    staff_name=request.form.get('staff_name', '')
-    #warehouse.good_crates = good_crates
-    #warehouse.worn_crates = worn_crates
-    #warehouse.disposed_crates = disposed_crates
-    #warehouse.total_crates = good_crates + worn_crates
-    #print("DEBUG: transaction_type =", transaction_type)
-    # Call the reusable validator
-    validation = validate_staff_selection()
-    if validation:  # If it returned a redirect, stop here
-        return validation
-    
-    #print("DEBUG: branchname =", warehouse_id)
-    #warehouse_id=warehouse.id,
-    #txn = Warehouse(name=""
-    #  ,whrsh_outlets_id=warehouse_id
-    #  ,good_crates=good_crates
-    #  ,worn_crates=worn_crates
-    #  ,disposed_crates=disposed_crates
-    #  ,total_crates=good_crates + worn_crates)
-    
-    txn = WarehouseTransaction(
-        wrhse_outlet_id=warehouse_id,
-        good_crates=good_crates + worn_crates,
-        worn_crates=worn_crates,
-        disposed_crates=disposed_crates,
-        transaction_type=transaction_type,
-       notes = ware_hse_name,
-        staff_name=staff_name
-    )
-
-    db.session.add(txn)
-    db.session.commit()
-
-    flash("Stocktake updated successfully!", "success")
-    return redirect(url_for('dashboard'))
-
-@app.route("/manage_users", methods=["GET", "POST"])
+@app.route('/settings/manage_users', methods=['GET', 'POST'])
 @login_required
 def manage_users():
-    create_message = ""
-    update_message = ""
-    delete_message = ""
+    outlets = Outlet.query.all()
 
     if request.method == "POST":
+        
         action = request.form.get("action")
+        print("Request method:", request.method)
+        print("Action:", request.form.get("action"))
 
         if action == "create":
             name = request.form.get("name")
-            plain_password = request.form.get("password")  # new field from form
+            plain_password = request.form.get("password")
             existing_user = Users.query.filter_by(staff_name=name).first()
+            role_user = request.form.get("role")
+            privilege_user = request.form.get("privilege")
 
             if existing_user:
-                create_message = f"User '{name}' already exists!"
-            else:
-                # Hash the admin-provided password
-                hashed_pw = generate_password_hash(plain_password)
+                return jsonify({"error": f"Request declined,User '{name}' already exists!"}), 400
 
-                new_user = Users(
-                    staff_name=name,
-                    username=name,  # you can adjust if you want username separate
-                    password_hash=hashed_pw,
-                    status=1
-                )
-                db.session.add(new_user)
-                db.session.commit()
-                create_message = f"User '{name}' added successfully with initial password!"
+            hashed_pw = generate_password_hash(plain_password)
+            new_user = Users(
+                staff_name=name,
+                username=name,
+                password_hash=hashed_pw,
+                is_active=1,
+                role=role_user,
+                privileges=privilege_user
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            return jsonify({"success": f"User '{name}' added successfully!"})
 
         elif action == "update":
             user_id = request.form.get("username")
             new_name = request.form.get("new_name")
-            #print("updating", user_id)
+            user = Users.query.get(user_id)
+
+            if not user:
+                return jsonify({"error": "Request declined, User not found"}), 404
 
             if not new_name:
-                update_message = "New name is required."
+                new_name = user.username
+
+            # Update user fields
+            user.staff_name = new_name
+            user.is_active = bool(request.form.get("active"))
+            user.role = request.form.get("roles")
+            user.privileges = request.form.get("privileges")
+
+            new_outlet_id = request.form.get("outlet_id")
+            print("Outlet ID from form:", new_outlet_id)
+
+            if new_outlet_id:
+                # Check if this user is already attached to any outlet
+                existing_outlet = Outlet.query.filter_by(user_id=user.id).first()
+                print("form outlet_id",new_outlet_id)
+                print("fecthed existing_outlet",existing_outlet.outlet_id)
+                if existing_outlet:
+                    if str(existing_outlet.outlet_id) != str(new_outlet_id):
+                        # User is attached to a different outlet → reject
+                        return jsonify({
+                            "error": (
+                                f"⚠️ Request declined. User '{new_name}' is already attached "
+                                f"to outlet '{existing_outlet.name}' (ID {existing_outlet.outlet_id}). "
+                                "Cannot attach to multiple outlets."
+                            )
+                        }), 400
+                    else:
+                        # Same outlet → allow update of user fields
+                        pass  # continue below
+
+                # Now fetch the outlet by its ID
+                outlet = Outlet.query.filter_by(outlet_id=new_outlet_id).first()
+                if outlet:
+                    # Check if outlet is attached to another user
+                    if outlet.user_id and str(outlet.user_id) != str(user.id):
+                        return jsonify({
+                            "error": (
+                                f"⚠️ Request declined. Outlet '{outlet.name}' (ID {outlet.outlet_id}) "
+                                f"is already attached to user ID {outlet.user_id}. "
+                                "Cannot reassign without freeing it first."
+                            )
+                        }), 400
+
+                    # Safe to attach/update
+                    outlet.user_id = user.id
+
             else:
-                user = Users.query.get(user_id)
-                if user:
-                    oldname = user.staff_name
-                    user.staff_name = new_name
+                # No outlet_id provided → free all outlets attached to this user
+                attached_outlets = Outlet.query.filter_by(user_id=user.id).all()
+                for outlet in attached_outlets:
+                    outlet.user_id = None
 
-                    # Update privilege checkboxes (True if present, False if not)
-                    user.suspended = bool(request.form.get("suspended"))
-                    user.feed_entries = bool(request.form.get("feed_entries"))
-                    user.amend_entry = bool(request.form.get("amend_entry"))
-                    user.provision1 = bool(request.form.get("provision1"))
-                    user.provision2 = bool(request.form.get("provision2"))
-                    user.provision3 = bool(request.form.get("provision3"))
-                    user.provision4 = bool(request.form.get("provision4"))
-                    user.provision5 = bool(request.form.get("provision5"))
-                    user.provision6 = bool(request.form.get("provision6"))
-                    user.provision7 = bool(request.form.get("provision7"))
-                    user.provision8 = bool(request.form.get("provision8"))
-                    user.provision9 = bool(request.form.get("provision9"))
-
-                    db.session.commit()
-                    update_message = f"User '{oldname}' updated to '{new_name}' successfully!"
-                else:
-                    update_message = "User not found."
+            db.session.commit()
+            return jsonify({"success": f"User '{new_name}' successfully updated!"})
 
         elif action == "delete":
             user_id = request.form.get("del_username")
             user = Users.query.get(user_id)
-            if user:
-                db.session.delete(user)
-                db.session.commit()
-                delete_message = f"User '{user.staff_name}' deleted successfully!"
-            else:
-                delete_message = "User not found."
+            if not user:
+                return jsonify({"error": "User not found"}), 404
 
+            db.session.delete(user)
+            db.session.commit()
+            return jsonify({"success": f"User '{user.staff_name}' deleted successfully!"})
+
+        return jsonify({"error": "Unknown action"}), 400
+
+    # GET request → render template
     users = Users.query.all()
-    #print(users)
-
     return render_template(
-        "manage_users.html",
+        "settings/manage_users.html",
         users=users,
-        create_message=create_message,
-        update_message=update_message,
-        delete_message=delete_message
+        outlets=outlets,
+        roles=ROLE_LABELS.items(),
+        privileges=PRIVILEGE_LABELS.items()
     )
 
 @app.route("/get_user_privileges/<int:user_id>")
 def get_user_privileges(user_id):
     user = Users.query.get(user_id)
-    #print("testing user id",user)
     if not user:
-        return {"error": "User not found"}, 404
+        return jsonify({"error": "User not found"}), 404
 
-    #print(user.suspended)
-    #print(user.feed_entries)
-    #print(user.provision1)
-    return {
-        "suspended": user.suspended,
-        "feed_entries": user.feed_entries,
-        "amend_entry": user.amend_entry,
-        "provision1": user.provision1,
-        "provision2": user.provision2,
-        "provision3": user.provision3,
-        "provision4": user.provision4,
-        "provision5": user.provision5,
-        "provision6": user.provision6,
-        "provision7": user.provision7,
-        "provision8": user.provision8,
-        "provision9": user.provision9,
-    }
+    outlet = Outlet.query.filter_by(user_id=user_id).first()
+
+    return jsonify({
+        "active": bool(user.is_active),
+        "role": user.role,
+        "role_label": ROLE_LABELS.get(user.role, "Unknown"),
+        "privileges": user.privileges,
+        "privileges_label": PRIVILEGE_LABELS.get(user.privileges, "Unknown"),
+        "outlet_id": outlet.outlet_id if outlet else None,
+        "outlet_label": outlet.name if outlet else "No outlet assigned"
+    })
 
 
 if __name__ == "__main__":

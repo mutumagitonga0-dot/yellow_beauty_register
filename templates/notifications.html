@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Notifications</h2>
+<ul class="list-group">
+  {% for note in notifications %}
+  <li class="list-group-item">{{ note.message }}</li>
+  {% endfor %}
+</ul>
+{% endblock %}

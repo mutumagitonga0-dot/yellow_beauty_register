@@ -1,52 +1,189 @@
-{% extends "layout.html" %}
-{% block title %}Welcome - Login{% endblock %}
+{#% block title %}Welcome - Login{% endblock %#}
 
 {% block content %}
 <style>
   body {
     background: linear-gradient(135deg, #f28b82, #ffe0e0); /* soft red gradient */
     font-family: "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
+
   .login-card {
-    max-width: 400px;
-    margin: 80px auto;
-    padding: 30px;
+    max-width: 420px;
+    width: 100%;
+    padding: 40px 30px;
     background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    border-radius: 15px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
     text-align: center;
+    animation: fadeIn 0.8s ease-in-out;
   }
+
   .login-card h2 {
     margin-bottom: 20px;
-    color: #333;
+    color: #dc3545;
+    font-weight: 700;
   }
-  .login-card input {
-    margin-bottom: 15px;
-  }
-  .welcome-graphic {
+
+  .login-card img {
     width: 100px;
     margin-bottom: 20px;
+    animation: pulse 2s infinite;
+  }
+
+  .form-control {
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    transition: all 0.3s ease;
+  }
+
+  .form-control:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 8px rgba(220,53,69,0.4);
+  }
+
+  .btn-login {
+    background: #dc3545;
+    color: #fff;
+    border-radius: 8px;
+    padding: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+
+  .btn-login:hover {
+    background: #b02a37;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(220,53,69,0.3);
+  }
+
+  .forgot-link {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+
+  .forgot-link:hover {
+    text-decoration: underline;
+  }
+
+  .form-check-label {
+    font-size: 0.9rem;
+    color: #555;
+  }
+
+  /* Alerts */
+  .alert {
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
   }
 </style>
 
+<div class="login-card">
+  <img src="{{ url_for('static', filename='images/ybeauty_homepage.png') }}" alt="Yellow Beauty Logo">
+  <h2>Welcome to YELLOW BEAUTY Attendance System</h2>
 
-<h2 class="text-center text- green mt-4">Welcome to TGL Crates Monitoring System</h2>
+  <form id="loginForm" method="POST" action="{{ url_for('login') }}">
+    <div class="mb-3">
+      <input type="text" name="username" class="form-control w-100" placeholder="Enter Username" required>
+    </div>
+    <div class="mb-3">
+      <input type="password" name="password" id="password" class="form-control w-100" placeholder="Enter Password" required>
+    </div>
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="togglePasswordCheck">
+        <label class="form-check-label" for="togglePasswordCheck">Show Password</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="rememberMe" name="remember">
+        <label class="form-check-label" for="rememberMe">Remember Me</label>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-login w-100">Login</button>
+    <p class="mt-3">
+      <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot your password?</a>
+    </p>
+  </form>
 
-<div class="homepage-banner">
-  <img src="{{ url_for('static', filename='images/warehouse_monitoring.png') }}" 
-       alt="Warehouse Monitoring" class="bg-image">
-
-  <div class="overlay">
-    <form method="POST" action="{{ url_for('login') }}" class="login-form">
-      <input type="text" name="username" class="form-control mb-3" placeholder="Enter Username" required>
-      <input type="password" name="password" class="form-control mb-3" placeholder="Enter Password" required>
-      <button type="submit" class="btn btn-danger w-100">Login</button>
-      <p class="mt-3">
-        <a href="{{ url_for('forgot_password') }}" class="text-blue">Forgot your password?</a>
-      </p>
-    </form>
-  </div>
+  <!-- Inline alert area -->
+  <div id="loginAlert" class="mt-2"></div>
 </div>
+
+<!--script>
+// Show/Hide Password Toggle
+const togglePasswordCheck = document.getElementById('togglePasswordCheck');
+const passwordInput = document.getElementById('password');
+togglePasswordCheck.addEventListener('change', () => {
+  passwordInput.setAttribute('type', togglePasswordCheck.checked ? 'text' : 'password');
+});
+
+// Handle login form via fetch
+document.getElementById("loginForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+
+  fetch(this.action, { method: "POST", body: formData })
+    .then(response => response.json())
+    .then(data => {
+      const alertBox = document.getElementById("loginAlert");
+      if (data.status === "success") {
+        alertBox.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+        setTimeout(() => window.location.href = "{{ url_for('profile') }}", 1500);
+      } else {
+        alertBox.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+      }
+    })
+    .catch(err => {
+      console.error("Error:", err);
+      document.getElementById("loginAlert").innerHTML =
+        `<div class="alert alert-danger">Something went wrong. Try again.</div>`;
+    });
+});
+</script-->
+
+<script>
+document.getElementById("loginForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+
+  fetch(this.action, { method: "POST", body: formData })
+    .then(response => response.json())
+    .then(data => {
+      const alertBox = document.getElementById("loginAlert");
+      if (data.status === "success") {
+        alertBox.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+        // ✅ Use redirect field from backend
+        setTimeout(() => window.location.href = data.redirect, 1500);
+      } else {
+        alertBox.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+      }
+    })
+    .catch(err => {
+      console.error("Error:", err);
+      document.getElementById("loginAlert").innerHTML =
+        `<div class="alert alert-danger">Something went wrong. Try again.</div>`;
+    });
+});
+</script>
+
 
 
 {% endblock %}

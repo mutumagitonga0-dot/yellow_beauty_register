@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Reports</h2>
+<p>Monthly summary of hours worked:</p>
+
+<div class="container mt-4">
+  <div class="card">
+    <div class="card-header bg-danger text-white">
+      <h4>Attendance Reports</h4>
+    </div>
+    <div class="card-body">
+      <!-- Monthly Summary -->
+      <h5>Summary for {{ monthly_summary.month }}</h5>
+      <ul>
+        <li><strong>Present:</strong> {{ monthly_summary.total_present }}</li>
+        <li><strong>Absent:</strong> {{ monthly_summary.total_absent }}</li>
+        <li><strong>Late:</strong> {{ monthly_summary.total_late }}</li>
+      </ul>
+
+      <!-- Top Late Employees -->
+      <h5 class="mt-4">Top 5 Late Arrivals</h5>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Late Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in top_late %}
+            <tr>
+              <td>{{ record.user.name }}</td>
+              <td>{{ record.count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Export Options -->
+      <div class="mt-3">
+        <a href="{{ url_for('export_reports', format='csv') }}" class="btn btn-outline-primary">Export CSV</a>
+        <a href="{{ url_for('export_reports', format='pdf') }}" class="btn btn-outline-secondary">Export PDF</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

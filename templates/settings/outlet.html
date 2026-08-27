@@ -1,0 +1,381 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Outlet Settings</h2>
+
+<!-- Outlet dropdown -->
+<form method="POST" action="{{ url_for('outlet_settings') }}">
+  <div class="mb-3">
+    <label>Select Outlet for Options</label>
+    <select name="outlet_id" class="form-select" onchange="this.form.submit()">
+      <option value="">-- Choose Outlet --</option>
+      {% for outlet in outlets %}
+        <option value="{{ outlet.id }}" {% if selected_outlet and outlet.id == selected_outlet.id %}selected{% endif %}>
+          {{ outlet.name }} (ID: {{ outlet.outlet_id }})
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs" id="outletTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if not selected_outlet %}active{% endif %}" 
+            id="create-tab" data-bs-toggle="tab" data-bs-target="#create" 
+            type="button" role="tab">Create Outlet</button>
+  </li>
+  {% if selected_outlet %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if selected_outlet %}active{% endif %}" 
+            id="update-tab" data-bs-toggle="tab" data-bs-target="#update" 
+            type="button" role="tab">Update/Delete Outlet</button>
+  </li>
+  {% endif %}
+</ul>
+
+<div class="tab-content" id="outletTabsContent">
+
+  <!-- Create Tab -->
+  <div class="tab-pane fade {% if not selected_outlet %}show active{% endif %}" id="create" role="tabpanel">
+    <div class="card compact-card">
+      <div class="card-header bg-secondary text-white">Create New Outlet</div>
+      <div class="card-body">
+        <div class="row">
+          <!-- Form -->
+          <div class="col-md-7">
+            <form id="createOutletForm" method="POST" action="{{ url_for('outlet_settings') }}"
+                  data-ajax="true" onsubmit="return confirmUpdateDelete(event,this)">
+              <input type="hidden" name="action" value="create">
+
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label>Outlet Name</label>
+                  <input type="text" name="name" id="createName" class="form-control" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label>Latitude</label>
+                  <input type="text" name="latitude" id="createLat" class="form-control"
+                         oninput="updateMap('createLat','createLon','createName','createMap')" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label>Longitude</label>
+                  <input type="text" name="longitude" id="createLon" class="form-control"
+                         oninput="updateMap('createLat','createLon','createName','createMap')" required>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label>Landmark/Building(Location)</label>
+                  <input type="text" name="address" class="form-control" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label>Clock-in Radius (m)</label>
+                  <input type="number" name="clock_in_radius" value="100" class="form-control" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label>Attach User</label>
+                  <select name="user_id" class="form-select" required>
+                    <option value="">-- Select User --</option>
+                    {% for user in free_users%}
+                      <option value="{{ user.id }}">{{ user.staff_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-success btn-sm">Create Outlet</button>
+            </form>
+          </div>
+
+          <!-- Map -->
+          <div class="col-md-5">
+            <div id="createMap" class="map-preview"></div>
+<!--button class="btn btn-outline-secondary" onclick="resetMap()">Reset Map</button-->
+<button class="btn btn-outline-secondary btn-sm mt-2" onclick="resetCreateMap()">Reset Map</button>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+  {% if selected_outlet %}
+  <!-- Update/Delete Tab -->
+  <div class="tab-pane fade {% if selected_outlet %}show active{% endif %}" id="update" role="tabpanel">
+    <div class="card compact-card">
+      <div class="card-header bg-primary text-white">Update/Delete Outlet</div>
+      <div class="card-body">
+        <div class="row">
+          <!-- Form 7-->
+          <div class="col-md-10">
+            <form id="updateOutletForm" method="POST" action="{{ url_for('outlet_settings') }}"
+                  data-ajax="true" onsubmit="return confirmUpdateDelete(event,this)">
+              <input type="hidden" name="outlet_id" value="{{ selected_outlet.id }}">
+
+              
+
+            <!-- Row 1 -->
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label>Outlet Name</label>
+                <input type="text" name="name" id="updateName" 
+                       value="{{ selected_outlet.name }}" 
+                       class="form-control" required readonly 
+                       style="background-color:#F0F0F0; color:red;">
+              </div>
+              <div class="col-md-4 mb-3">
+                <label>Latitude</label>
+                <input type="text" name="latitude" id="updateLat" 
+                       value="{{ selected_outlet.latitude }}" 
+                       class="form-control" required
+                       oninput="updateMap('updateLat','updateLon','updateName','updateMap')">
+              </div>
+              <div class="col-md-4 mb-3">
+                <label>Longitude</label>
+                <input type="text" name="longitude" id="updateLon" 
+                       value="{{ selected_outlet.longitude }}" 
+                       class="form-control" required
+                       oninput="updateMap('updateLat','updateLon','updateName','updateMap')">
+              </div>
+            </div>
+
+            <!-- Row 2 -->
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label>Street/Landmark/Building</label>
+                <input type="text" name="address" 
+                       value="{{ selected_outlet.address }}" 
+                       class="form-control" required>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label>Clock-in Radius (m)</label>
+                <input type="number" name="clock_in_radius" 
+                       value="{{ selected_outlet.clock_in_radius }}" 
+                       class="form-control" required>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label>User Attached</label>
+                <select name="user_id" class="form-select" required>
+                  <option value="">-- Select User --</option>
+                  {% for user in users %}
+                    <option value="{{ user.id }}" {% if selected_outlet.user_id == user.id %}selected{% endif %}>
+                      {{ user.staff_name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+
+              <button type="submit" name="action" value="update" class="btn btn-primary btn-sm">Update Outlet</button>
+              <button type="submit" name="action" value="delete" id="delete" class="btn btn-danger btn-sm">Delete Outlet</button>
+            </form>
+          </div>
+
+          <!-- Map -->
+          <!--div class="col-md-5">
+            <div id="updateMap" class="map-preview"></div>
+          </div-->
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+  <!-- Preview Card -->
+  <div class="card compact-card mt-3">
+    <div class="card-header bg-info text-white">Outlet Preview</div>
+    <div class="card-body">
+      <div class="row">
+        <!-- Details -->
+        <div class="col-md-6">
+          <p><strong>Name:</strong> {{ selected_outlet.name }}</p>
+          <p><strong>ID:</strong> {{ selected_outlet.outlet_id }}</p>
+          <p><strong>Address:</strong> {{ selected_outlet.address }}</p>
+          <p><strong>Latitude:</strong> {{ selected_outlet.latitude }}</p>
+          <p><strong>Longitude:</strong> {{ selected_outlet.longitude }}</p>
+          <p><strong>Clock-in Radius:</strong> {{ selected_outlet.clock_in_radius }} meters</p>
+          <p><strong>User Attached:</strong> 
+            {% if selected_outlet.user_id %}
+              {{ users|selectattr("id","equalto",selected_outlet.user_id)|map(attribute="staff_name")|first }}
+            {% else %}
+              None
+            {% endif %}
+          </p>
+        </div>
+        <!-- Map -->
+        <div class="col-md-6">
+          <!--div id="previewMap" class="map-preview"></div-->
+	  <div id="updateMap" class="map-preview"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+  // Global maps and markers
+  let createMap, createMarker;
+  let updateMapObj, updateMarker;
+  let previewMap, previewMarker;
+
+  // Initialize Create map with world view
+  function initCreateMap() {
+    createMap = L.map('createMap').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(createMap);
+    createMarker = L.marker([0,0]).addTo(createMap).bindPopup("Standby").openPopup();
+  }
+
+  // Reset Create map back to world view
+  function resetCreateMap() {
+    if (createMap && createMarker) {
+      createMap.setView([0, 0], 2);
+      createMarker.setLatLng([0,0]).bindPopup("Standby").openPopup();
+    }
+  }
+
+  // Update Create or Update map when user types lat/lon
+  function updateMap(latId, lonId, nameId, mapDivId) {
+    const lat = parseFloat(document.getElementById(latId).value);
+    const lon = parseFloat(document.getElementById(lonId).value);
+    const name = document.getElementById(nameId)?.value || "Outlet Location";
+
+    if (!isNaN(lat) && !isNaN(lon)) {
+      if (mapDivId === 'createMap' && createMap) {
+        createMap.setView([lat, lon], 15);
+        createMarker.setLatLng([lat, lon]).bindPopup(name).openPopup();
+      }
+      if (mapDivId === 'updateMap' && updateMapObj) {
+        updateMapObj.setView([lat, lon], 15);
+        updateMarker.setLatLng([lat, lon]).bindPopup(name).openPopup();
+      }
+    }
+  }
+
+  // Initialize Update map with selected outlet
+  function initUpdateMap(lat, lon, name) {
+    updateMapObj = L.map('updateMap').setView([lat || 0, lon || 0], lat && lon ? 15 : 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(updateMapObj);
+    updateMarker = L.marker([lat || 0, lon || 0]).addTo(updateMapObj).bindPopup(name || "Outlet").openPopup();
+  }
+
+  // Initialize Preview map with selected outlet
+  function initPreviewMap(lat, lon, name) {
+    previewMap = L.map('previewMap').setView([lat || 0, lon || 0], lat && lon ? 15 : 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(previewMap);
+    previewMarker = L.marker([lat || 0, lon || 0]).addTo(previewMap).bindPopup(name || "Outlet").openPopup();
+  }
+
+  // Auto-init maps on page load
+  document.addEventListener("DOMContentLoaded", function() {
+    initCreateMap();
+    {% if selected_outlet %}
+      initUpdateMap({{ selected_outlet.latitude or 0 }}, {{ selected_outlet.longitude or 0 }}, '{{ selected_outlet.name }}');
+      initPreviewMap({{ selected_outlet.latitude or 0 }}, {{ selected_outlet.longitude or 0 }}, '{{ selected_outlet.name }}');
+    {% endif %}
+  });
+</script>
+
+
+
+
+
+
+
+
+<!-- Styles -->
+<style>
+  .compact-card .card-body { padding: 0.75rem 1rem; }
+  .compact-card .form-control, .compact-card .form-select {
+    padding: 0.25rem 0.5rem; font-size: 0.9rem;
+  }
+  .compact-card label { font-size: 0.85rem; margin-bottom: 0.25rem; }
+  .map-preview { height: 250px; border: 1px solid #ddd; border-radius: 6px; }
+</style>
+
+<!-- Scripts -->
+<script>
+document.getElementById("outletSearch").addEventListener("input", function() {
+  const query = this.value.toLowerCase();
+  document.querySelectorAll("#outletList li").forEach(li => {
+    li.style.display = li.textContent.toLowerCase().includes(query) ? "" : "none";
+  });
+});
+
+</script>
+
+
+<script>
+function confirmUpdateDelete(event, form) {
+  const submitter = event.submitter;   // actual button clicked
+  const action = submitter?.value || form.querySelector("input[name=action]")?.value;
+  const outletName = form.querySelector("[name=name]")?.value || "this outlet";
+
+  // 🔎 Debug logs
+  console.log("=== DEBUG confirmUpdateDelete ===");
+  console.log("Submitter element:", submitter);
+  console.log("Submitter name:", submitter?.name);
+  console.log("Submitter value:", submitter?.value);
+  console.log("Resolved action:", action);
+  console.log("Outlet name:", outletName);
+
+  let message = "";
+  if (action === "create") message = "You are about to create outlet '" + outletName + "'. Proceed?";
+  if (action === "update") message = "You are about to update outlet '" + outletName + "'. Proceed?";
+  if (action === "delete") message = "You are about to delete outlet '" + outletName + "'. Proceed?";
+
+  const result = confirm(message);
+  console.log("Confirm result:", result);
+
+  if (!result) {
+    console.log("Submission cancelled by user.");
+    event.preventDefault(); // stop submission
+    return false;
+  }
+
+  console.log("Proceeding with action:", action);
+  return true;
+}
+</script>
+
+
+
+<style>
+  /* Highlight active tab */
+  .nav-tabs .nav-link.active {
+    background-color: #ffc107;
+    color: #212529;
+    font-weight: 600;
+    box-shadow: 0 0 10px rgba(255,193,7,0.6);
+    border: 1px solid #ffc107;
+  }
+
+  /* Compact card style */
+  .compact-card .card-body {
+    padding: 0.5rem 1rem; /* reduce padding */
+    line-height: 1.2;     /* tighter line spacing */
+  }
+  .compact-card p {
+    margin-bottom: 0.4rem; /* reduce spacing between paragraphs */
+  }
+</style>
+
+
+{% endblock %}

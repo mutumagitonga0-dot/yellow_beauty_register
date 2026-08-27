@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Admin Panel</h2>
+<table class="table">
+  <thead><tr><th>User</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody>
+    {% for user in users %}
+    <tr>
+      <td>{{ user.name }}</td>
+      <td>{{ "Active" if user.active else "Inactive" }}</td>
+      <td><a href="/admin/edit/{{ user.id }}" class="btn btn-sm btn-secondary">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

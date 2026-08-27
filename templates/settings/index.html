@@ -1,0 +1,52 @@
+{% extends "layout.html" %}*/
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-4">Settings</h2>
+
+  <div class="row">
+    <!-- General Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">General</h5>
+          <p class="card-text">Manage clock-in radius, working hours, and thresholds.</p>
+          <a href="{{ url_for('settings') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Outlet Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Outlets</h5>
+          <p class="card-text">Create, update, delete, and search outlets with map visualization.</p>
+          <a href="{{ url_for('outlet_settings') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+
+<!-- User Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Users</h5>
+          <p class="card-text">Create, update, delete, and search user </p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reports Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Reports</h5>
+          <p class="card-text">View attendance summaries and export reports.</p>
+          <a href="{{ url_for('reports') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -2,413 +2,409 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<!--h1 class="dashboard-title">Dashboard</h1-->
 
-{% include "daily_reconcilations.html" %}
-{% include "stocktake.html" %}
-
-<!-- Warehouse Summary -->
-  <h2>{{ warehouse_summary_text|safe }}</h2>
-  <table class="table table-bordered">
-    <thead class="table-dark">
-      <tr>
-        <th>Periodical Warehouse</th>
-        <th>Last Stocktake</th>
-        <th>Total Available</th>
-        <th>Total Dispatched</th>
-        <th>Total Collected</th>
-        <th>Total Variance</th>
-        <th>Available %</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-<tbody>
-    <tr>
-      <td>{{ warehouse_summary.name }}</td>
-      <td>{{ warehouse_summary.last_stocktake }}</td>
-      <td>{{ warehouse_summary.total_available }}</td>
-      <td>{{ warehouse_summary.total_dispatched }}</td>
-      <td>{{ warehouse_summary.total_collected }}</td>
-      <td>{{ warehouse_summary.variance }}</td>
-      <td>{{ warehouse_summary.available_pct }}%</td>
-    </tr>
-  </tbody>
-    <!--tbody>{{ warehouse_row|safe }}</tbody-->
-  </table>
-
-  <div class="row mt-4">
-  <div class="col d-flex justify-content-between align-items-center">
-    <h4 class="mb-3">Daily Crates Reconciliation</h4>
-     <button id="toggle-history" class="btn btn-outline-primary btn-sm">
-      View Reconciliation History
-    </button>
-  </div>
-
-  <!-- Default Table: Latest Record -->
-  <table class="table table-bordered table-striped text-center align-middle">
-    <thead class="table-dark">
-      <tr>
-        <th>Offloading Date</th>
-        <th>Dispatched Qty</th>
-        <th>App Collection</th>
-        <th>Offloaded Qty</th>
-        <th>Offloaded by</th>
-        <th>Today's Variance</th>
-        <th>Collection Performance %</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% if last_rec %}
-      <tr>
-        <td>{{ last_rec.created_at.strftime("%d %B %Y") }}</td>
-        <td>{{ last_rec.dispatched_crates }}</td>
-        <td>{{ last_rec.app_collections }}</td>
-        <td>{{ last_rec.physical_crates }}</td>
-        <td>{{ last_rec.staff_name }}</td>
-        <td class="{% if last_rec.variance != 0 %}text-danger fw-bold{% else %}text-success fw-bold{% endif %}">
-          {{ last_rec.variance }}
-        </td>
-        <td>
-          {% set denominator = last_rec.app_collections if last_rec.app_collections > 0 else 1 %}
-          {{ (last_rec.physical_crates / denominator * 100) | round(2) }}%
-        </td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="7" class="text-muted">No reconciliation records yet.</td>
-      </tr>
-      {% endif %}
-    </tbody>
-  </table>
-
-  <!-- Collapsible History -->
-  <div class="collapse mt-3" id="reconciliationHistory">
-    <div class="card card-body">
-      <h5 class="mb-3 d-flex justify-content-between align-items-center">
-  	<span>Reconciliation History (Last 20)</span>
-  	<button id="load-more" class="btn btn-outline-primary btn-sm">
-    	Load More
-  	</button>
-        <button id="print-btn" class="btn btn-outline-primary btn-sm">
-          Print
-       </button>
-        
-     </h5>
-      <table class="table table-sm table-striped text-center align-middle mb-0">
-        <tbody>
-          {% for rec in reconciliations %}
-          <tr>
-            <td>{{ rec.created_at.strftime("%d %B %Y") }}</td>
-            <td>{{ rec.dispatched_crates }}</td>
-            <td>{{ rec.app_collections }}</td>
-            <td>{{ rec.physical_crates }}</td>
-            <td>{{ rec.staff_name }}</td>
-            <td class="{% if rec.variance != 0 %}text-danger fw-bold{% else %}text-success fw-bold{% endif %}">
-              {{ rec.variance }}
-            </td>
-            <td>
-              {% set denominator = rec.app_collections if rec.app_collections > 0 else 1 %}
-              {{ (rec.physical_crates / denominator * 100) | round(2) }}%
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<!-- Attendance Banner -->
+<header class="header flex-column align-items-start mb-3">
+  <div class="d-flex justify-content-between align-items-center w-100 mb-3">
+    <div class="text-center w-100">
+      <h1 class="mb-1 text-warning">Employee Attendance Register</h1>
+      <h2 class="mb-1">Welcome, {{ current_user.username }}</h2>
+      <p id="clock" class="fw-bold text-secondary"></p>
+      <p id="attached_outlet" class="fw-bold text-secondary">
+        Assigned Outlet: {{ outletname }}
+      </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <!-- Theme toggle -->
+      <button id="themeToggle" class="btn btn-sm btn-outline-dark" aria-label="Toggle theme">
+        <i class="fa-solid fa-moon"></i>
+      </button>
+      <!-- Logout -->
+      <a href="/logout" class="btn btn-logout" aria-label="Logout">
+        <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+      </a>
     </div>
   </div>
-</div>
+</header>
 
-<!-- Outlet & Actions Panel -->
-<div class="card shadow-sm mb-4">
-  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-    <h3 class="mb-0">Daily Outlet Summary</h3>
-    <span class="badge bg-light text-dark">Supervisor Actions</span>
+<!-- Dashboard Content -->
+<main class="grid-container">
+  <!-- Row 1 -->
+  <div class="row">
+    <section class="card checkin">
+      <h2>🕒 Check In</h2>
+      <button id="clockInBtn" onclick="clockInBtn()">Clock In</button>
+      <p id="checkinStatus"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...</p>
+    </section>
+
+    <section class="card checkout">
+      <h2>🔄 Check Out</h2>
+      <button id="clockOutBtn" onclick="clockOut()">Clock Out</button>
+      <p id="checkoutStatus"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...</p>
+    </section>
   </div>
-  <div class="card-body">
-    <div class="row text-center">
 
-      <!-- Crates Stocktake Button -->
-      <div class="col">
-        <button class="btn btn-primary w-100"
-                style="background-color:#006400; border-color:#006400;"
-                data-bs-toggle="modal"
-                data-bs-target="#stocktakeModal">
-          Crates Stocktake
-        </button>
-      </div>
+  <!-- Row 2 -->
+  <div class="row">
+    <section class="card summary">
+      <h2>📊 Today’s Summary</h2>
+      <p id="summaryText">Loading...</p>
+    </section>
 
-      <!-- End of Day Button -->
-      <div class="col">
-        <button class="btn btn-primary w-100"
-                style="background-color:#00008B; border-color:#00008B;"
-                data-bs-toggle="modal"
-                data-bs-target="#endDayModal">
-          Perform End Of Day
-        </button>
-      </div>
-
-
-      <!-- Reconciliation Button -->
-      <div class="col">
-        <button class="btn btn-primary w-100"
-                style="background-color:#8B0000; border-color:#8B0000;"
-                data-bs-toggle="collapse"
-                data-bs-target="#reconciliationPanel"
-                aria-expanded="false"
-                aria-controls="reconciliationPanel">
-          View Outlets Collection Trends
-        </button>
-      </div>
-
-      
-
-<!-- Print collection entries Button -->
-<div class="col">
-  <button class="btn btn-primary w-100"
-          style="background-color:#070118; border-color:#8B0000;"
-          id="printCollectionBtn">
-    Print To Collect List
-  </button>
-</div>
-
-
-<!-- Collapsible Reconciliation Panel -->
-<div class="collapse mt-4" id="reconciliationPanel">
-  <div class="card card-body">
-    <h4 class="mb-3">Daily Outlet Collections</h4>
-    <table class="table table-bordered table-striped text-center align-middle mb-0">
-      <thead class="table-dark">
-        <tr>
-          <th>Date</th>
-	  <th>Outlet</th>
-          <th>Recurrent Balance</th>
-          <th>App Dispatched</th>
-          <th>App Collected</th>
-          <th>Variance</th>
-          <th>Variance %</th>
-          <th>Collect By</th>
-        </tr>
-      </thead>
-      <tbody id="reconciliation-body">
-        {% for rec in reconciliations %}
-        <tr>
-          <td>{{ rec.created_at.strftime("%d %B %Y") }}</td>
-          <td>{{ rec.dispatched_crates }}</td>
-          <td>{{ rec.app_collections }}</td>
-          <td>{{ rec.physical_crates }}</td>
-          <td>{{ rec.staff_name }}</td>
-          <td class="{% if rec.variance != 0 %}text-danger fw-bold{% else %}text-success fw-bold{% endif %}">
-            {{ rec.variance }}
-          </td>
-          <td>{{ (rec.physical_crates / (rec.app_collections if rec.app_collections > 0 else 1) * 100) | round(2) }}%</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    <!-- Load More Button -->
-    <div class="text-center mt-3">
-      <button id="load-more" class="btn btn-outline-primary">Load More Records</button>
-    </div>
+    <section class="card notifications">
+      <h2>🔔 Notifications</h2>
+      <ul id="notificationsList"><li>No alerts</li></ul>
+    </section>
   </div>
-</div>
-
-<!--p>Debug: warehouse.id = {{ warehouse.id }}, warehouse.whrsh_outlets_id = {{ warehouse.whrsh_outlets_id }}</p-->
-
+</main>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-  const btn = document.querySelector('[data-bs-target="#reconciliationPanel"]');
-  const panel = document.getElementById('reconciliationPanel');
-
-  panel.addEventListener('shown.bs.collapse', () => {
-    btn.textContent = 'Hide Outlets Collection Trends';
-  });
-  panel.addEventListener('hidden.bs.collapse', () => {
-    btn.textContent = 'View Outlets Collection Trends';
-  });
-});
-</script>
-
-
-<!-- Status message -->
-<p id="collapseStatus" class="mt-2 text-info"></p>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  const btn = document.querySelector('[data-bs-target="#reconciliationPanel"]');
-  const panel = document.getElementById('reconciliationPanel');
-  const status = document.getElementById('collapseStatus');
-
-  panel.addEventListener('shown.bs.collapse', () => {
-    btn.textContent = 'Hide Outlets Collection Trends';
-    //status.textContent = 'Panel is now expanded';
-  });
-  panel.addEventListener('hidden.bs.collapse', () => {
-    btn.textContent = 'View Outlets Collection Trends';
-    //status.textContent = 'Panel is now collapsed';
-  });
-});
-</script>
-
-
-
-
-<div id="printCollectionArea">
-  <table class="table table-bordered">
-   <!--thead><tr><th>Outlet</th><th>Recurrent Balance</th><th>Uncollected Yesterday</th><th>Today's Dispatch</th><th>Total Dispatched</th><th>Today Collected</th><th>Today Variance</th><th>Picked</th><th>Left</th></tr></thead-->
-    <thead><tr><th>Outlet</th><th>Recurrent Balance</th><th>Uncollected Yesterday</th><th>Today's Dispatch</th><th>ToCollect Urgently</th><th>Night Left</th><th>Night Picked</th><th>Day Left</th><th>Day Picked</th></tr></thead>
-    <tbody>
-{{ rows|safe }}
-</tbody>
-<tfoot>
-      <tr class="fw-bold">
-        <td>Totals</td>
-        <td>{{ reconciliations.recurrent_balance }}</td>
-        <td>{{ reconciliations.uncollected_yesterday }}</td>
-        <td>{{ reconciliations.todays_dispatch }}</td>
-        <td>{{ reconciliations.total_dispatched }}</td>
-        <td>{{ reconciliations.today_collected }}</td>
-        <td>{{ reconciliations.today_variance }}</td>
-        <td></td> <!-- Picked stays blank -->
-        <td></td> <!-- Left stays blank -->
-      </tr>
-    </tfoot>
-  </table>
-</div>
-
-<div id="errorPanel" class="alert alert-danger d-none"></div>
-
-<script>
-let offset = 20;  // start after the first 20 already rendered
-
-document.getElementById("load-more").addEventListener("click", function() {
-  fetch(`/reconciliations/${offset}`)
-    .then(response => response.json())
-    .then(data => {
-      const tbody = document.getElementById("reconciliation-body");
-      data.reconciliations.forEach(rec => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${rec.created_at}</td>
-          <td>${rec.dispatched_crates}</td>
-          <td>${rec.app_collections}</td>
-          <td>${rec.physical_crates}</td>
-          <td>${rec.staff_name}</td>
-          <td class="${rec.variance !== 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}">${rec.variance}</td>
-          <td>${rec.performance}%</td>
-        `;
-        tbody.appendChild(row);
-      });
-      offset += 20;  // increment for next batch
-    });
-});
-</script>
-
-<script>
-document.getElementById("toggle-history").addEventListener("click", function() {
-  const historyPanel = document.getElementById("reconciliationHistory");
-  const latestTable = document.getElementById("latest-row-table");
-
-  if (historyPanel.classList.contains("show")) {
-    // History is visible → hide it, show latest row
-    new bootstrap.Collapse(historyPanel, {toggle: true});
-    latestTable.style.display = "table";
-    this.textContent = "View History";
-  } else {
-    // History is hidden → show it, hide latest row
-    new bootstrap.Collapse(historyPanel, {toggle: true});
-    latestTable.style.display = "none";
-    this.textContent = "Hide History";
+  // Live clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleString();
   }
-});
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Theme toggle
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('bg-dark');
+    document.body.classList.toggle('text-white');
+  });
+
+  // Utility: show busy cursor + disable buttons
+  function setBusy(state) {
+    document.body.style.cursor = state ? "wait" : "default";
+    document.getElementById("clockInBtn").disabled = state;
+    document.getElementById("clockOutBtn").disabled = state;
+  }
+
+  async function loadSummary() {
+    try {
+      const response = await fetch("/summary");
+      const data = await response.json();
+      let summaryHtml = `
+        <div><strong>Clock-in:</strong> ${data.clock_in}</div>
+        <div><strong>Clock-out:</strong> ${data.clock_out}</div>
+        <div><strong>Work hours:</strong> ${data.work_hours}</div>
+        <div><strong>Clock-in Counts:</strong> ${data.clock_in_count}</div>
+        <div><strong>Outlet:</strong> ${data.outlet || "None"}</div>
+      `;
+      document.getElementById("summaryText").innerHTML = summaryHtml;
+    } catch (err) {
+      document.getElementById("summaryText").innerText = "Error loading summary.";
+      console.error(err);
+    }
+  }
+
+
+function presserve_checkLoginOnLoad() {
+  setBusy(true);
+  document.getElementById('checkinStatus').innerHTML =
+    '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+
+  // Primary: GPS/Wi-Fi geolocation
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // Success: got coordinates
+      sendLocation(pos.coords.latitude, pos.coords.longitude);
+    },
+    err => {
+      // GPS failed → fallback to IP-based location
+      document.getElementById('checkinStatus').textContent =
+        "⚠️ GPS error: " + err.message + " → trying IP location...";
+
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+          if (data.latitude && data.longitude) {
+            sendLocation(data.latitude, data.longitude);
+            document.getElementById('checkinStatus').textContent =
+              "Using approximate IP location";
+          } else {
+            document.getElementById('checkinStatus').textContent =
+              "⚠️ Location unavailable";
+          }
+        })
+        .catch(() => {
+          document.getElementById('checkinStatus').textContent =
+            "⚠️ Location lookup failed";
+        })
+        .finally(() => setBusy(false));
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+// Helper: send coordinates to backend
+function preserve_sendLocation(lat, lon) {
+  fetch("/check_active_login_existence", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latitude: lat, longitude: lon })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('checkinStatus').textContent =
+      data.success || data.error;
+  })
+  .catch(err => {
+    document.getElementById('checkinStatus').textContent =
+      "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+
+
+
+// Generic helper: tries GPS, falls back to IP, then sends to backend
+function getLocationAndSend(endpoint, statusElementId) {
+  setBusy(true);
+  const statusEl = document.getElementById(statusElementId);
+  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // GPS success
+      sendToBackend(endpoint, statusElementId, pos.coords.latitude, pos.coords.longitude);
+    },
+    err => {
+      // GPS failed → fallback to IP
+      statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
+
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+          if (data.latitude && data.longitude) {
+            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude);
+            statusEl.textContent = "Using approximate IP location";
+          } else {
+            statusEl.textContent = "⚠️ Location unavailable";
+            setBusy(false);
+          }
+        })
+        .catch(() => {
+          statusEl.textContent = "⚠️ Location lookup failed";
+          setBusy(false);
+        });
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+// Generic backend sender
+function sendToBackend(endpoint, statusElementId, lat, lon) {
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latitude: lat, longitude: lon })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById(statusElementId).textContent = data.success || data.error;
+  })
+  .catch(err => {
+    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+
+
+function checkLoginOnLoad() {
+  getLocationAndSend("/check_active_login_existence", "checkinStatus");
+}
+
+function clockInBtn() {
+  getLocationAndSend("/clockin", "checkinStatus");
+}
+
+function clockOut() {
+  getLocationAndSend("/clockout", "checkoutStatus");
+}
+
+
+function alertLastcheckoutOnLoad() {
+  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
+}
+
+
+  function hold_this_option_2_checkLoginOnLoad() {
+    setBusy(true);
+    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(
+  pos => {
+    fetch("/check_active_login_existence", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('checkinStatus').textContent = data.success || data.error;
+    })
+    .finally(() => setBusy(false));
+  },
+  err => {
+    document.getElementById('checkinStatus').textContent = "⚠️ Location error: " + err.message;
+    setBusy(false);
+  },
+  { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+);
+
+  }
+
+
+function Hold_on_this_checkLoginOnLoad() {
+    setBusy(true);
+    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/check_active_login_existence", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkinStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  function original_alertLastcheckoutOnLoad() {
+    setBusy(true);
+    document.getElementById('checkoutStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/alert_user_last_clockout", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkoutStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  function original_clockInBtn() {
+    setBusy(true);
+    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/clockin", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkinStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  function original_clockOut() {
+    setBusy(true);
+    document.getElementById('checkoutStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/clockout", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkoutStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  // ✅ Trigger all on page load
+  document.addEventListener("DOMContentLoaded", function() {
+    loadSummary();
+    checkLoginOnLoad();
+    alertLastcheckoutOnLoad();
+  });
 </script>
-
-
-
 
 <style>
-/* Print rules */
-@media print {
-  @page {
-    size: A4 potrait;   /* fixed width */
-    margin: 1cm;         /* adjust margins */
-  }
-  body {
-    font-family: Arial, sans-serif;
-    font-size: 12px;
-  }
-  table {
-    width: 100%;         /* fit width */
-    border-collapse: collapse;
-  }
-  th, td {
-    border: 1px solid #000;
-    padding: 4px;
-    text-align: center;
-  }
-  thead {
-    display: table-header-group; /* repeat header on each page */
-  }
-  tfoot {
-    display: table-footer-group;
-  }
+body {
+  background: url("{{ url_for('static', filename='images/ybeauty_dashboard.png') }}") 
+              no-repeat center center fixed;
+  background-size: cover;
+  font-family: "Segoe UI", sans-serif;
+  color: #222;
+  margin: 0;
+  padding: 0;
+}
+
+.header {
+  text-align: center;
+  padding: 0px;
+  background: rgba(255,255,102);
+  border-bottom: 5px solid #0078D4;
+}
+
+.grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  margin: 40px auto;
+  width: 90%;
+  max-width: 1000px;
+}
+
+.summary h2 { color: #28A745; }
+.notifications h2 { color: #FF9800; }
+.notifications ul { list-style: none; padding: 0; }
+.notifications li { margin: 5px 0; }
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.card {
+  flex: 1;
+  background: rgba(255,204,255);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  padding: 20px;
+  text-align: center;
+}
+
+.card h2 {
+  color: #0078D4;
+}
+
+button {
+  background-color: #0078D4;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+button:disabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+button:hover:enabled {
+  background-color: #005A9E;
 }
 </style>
 
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  const cells = document.querySelectorAll("#printCollectionArea td");
-  cells.forEach(cell => {
-    if (cell.textContent.trim() === "0") {
-      cell.textContent = "-";
-    }
-  });
-});
-</script>
-
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  const printBtn = document.getElementById("printCollectionBtn");
-  if (printBtn) {
-    printBtn.addEventListener("click", function() {
-      // Open a new window with just the table content
-      const content = document.getElementById("printCollectionArea").innerHTML;
-      const printWindow = window.open('', '', 'width=1200,height=600');
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Collection List</title>
-            <style>
-              @page { size: A4 potrait; margin: 1cm; }
-              body { font-family: Arial, sans-serif; font-size: 12px; }
-              table { width: 100%; border-collapse: collapse; }
-              th, td { border: 1px solid #000; padding: 4px; text-align: center; }
-              thead { display: table-header-group; }
-              tfoot { display: table-footer-group; }
-            </style>
-          </head>
-          <body>
-            ${content}
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-    });
-  }
-});
-</script>
-
-
-
-<!-- Bootstrap 5 bundle includes Popper -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
-
-
-</body>
-
-  <!-- Your dashboard rows, modals, etc. -->
 {% endblock %}
