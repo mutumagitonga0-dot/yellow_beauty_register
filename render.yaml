@@ -1,17 +1,31 @@
-# Exported from Render on 2026-08-27T17:52:30Z
 version: "1"
+
 services:
-- type: web
-  name: yellow_beauty_register
-  runtime: docker
-  repo: https://github.com/mutumagitonga0-dot/yellow_beauty_register
-  plan: free
-  envVars:
-  - key: SECRET_KEY
-    sync: false
-  - key: DATABASE_URL
-    sync: false
-  region: oregon
-  dockerContext: .
-  dockerfilePath: ./Dockerfile
-  autoDeployTrigger: commit
+  - type: web
+    name: yellow-beauty-backend
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    postDeployCommand: "flask db upgrade"   # or "alembic upgrade head" / "python manage.py migrate"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yellow_beauty_db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+
+databases:
+  - name: yellow_beauty_db
+    databaseName: yellow_beauty_db
+    user: yellow_beauty_db_user
+    plan: basic-256mb
+    region: oregon
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+    postgresMajorVersion: "18"
+    diskSizeGB: 1
