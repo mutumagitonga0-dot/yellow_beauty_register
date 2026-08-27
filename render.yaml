@@ -2,9 +2,9 @@
 version: "1"
 services:
 - type: web
-  name: Tunda_crates_issuance_n_tracking
+  name: yellow_beauty_register
   runtime: docker
-  repo: https://github.com/mutumagitonga0-dot/tgl_crates_issuance_n_tracking
+  repo: https://github.com/mutumagitonga0-dot/yellow_beauty_register
   plan: free
   envVars:
   - key: SECRET_KEY
