@@ -29,7 +29,12 @@
           <p><strong>Name:</strong> {{ current_user.staff_name }}</p>
           <p><strong>Employee ID:</strong> {{ current_user.id }}</p>
           <p><strong>Department:</strong> {{ current_user.department }}</p>
-          <p><strong>Allocated Store:</strong> {{ outletname }}</p>
+          <p><strong>MainStore Allocated:</strong> {{ outletname }}</p>
+	  <p><strong>Other Stores Assighed:</strong> 
+             {% for outlet in assigned_outlets %}
+             {{ outlet.label }}{% if not loop.last %}, {% endif %}
+               {% endfor %}
+           </p>
           <p><strong>Email:</strong> {{ current_user.email }}</p>
           <p><strong>Password:</strong> ******** 
             <!--button type="button" class="btn btn-link btn-sm text-primary" data-bs-toggle="modal" data-bs-target="#changePasswordModal">

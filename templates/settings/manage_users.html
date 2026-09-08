@@ -65,12 +65,13 @@
   </form>
 </div>
  
-<!-- Update staff -->
+<!-- Update/Delete Staff -->
 <div class="border p-2 mb-2 rounded bg-warning bg-opacity-25">
-  <h6 class="text-center text-dark mb-2">✏️ Update Staff</h6>
-  <form method="post" action="/settings/manage_users" data-ajax="true"
-        onsubmit="return confirm('Do you want to update user ' + document.querySelector('[name=username]').options[document.querySelector('[name=username]').selectedIndex].text + '?');">
-    <input type="hidden" name="action" value="update">
+  <h6 class="text-center text-dark mb-2">✏️ Manage Staff</h6>
+  <form method="post" action="/settings/manage_users" data-ajax="true">
+    
+    <!-- Hidden action field will be set dynamically -->
+    <input type="hidden" name="action" id="form_action" value="update">
 
     <div class="row">
       <!-- Panel 1: User Details -->
@@ -78,7 +79,7 @@
         <div class="border rounded p-2 bg-light">
           <h6 class="text-center text-primary mb-2">👤 User Details</h6>
           <div class="row mb-2">
-            <div class="col-12">
+            <div class="col-4">
               <label class="form-label">Select User</label>
               <select name="username" class="form-select form-select-sm" required>
                 <option value="" selected>-- Select User --</option>
@@ -87,21 +88,60 @@
                 {% endfor %}
               </select>
             </div>
-          </div>
-          <div class="row mb-2">
-            <div class="col-6">
+            <div class="col-5">
               <label class="form-label">New Name</label>
               <input type="text" name="new_name" class="form-control form-control-sm">
             </div>
-            <div class="col-6">
-              <label class="form-label">Attached Outlet</label>
-              <select name="outlet_id" class="form-select form-select-sm" id="outlet_id">
-                <option value="">-- Select Outlet --</option>
-                {% for outlet in outlets %}
-                  <option value="{{ outlet.outlet_id }}">{{ outlet.name }}</option>
-                {% endfor %}
-              </select>
-              <input type="hidden" name="outlet_label" id="outlet_label_hidden">
+          </div>
+
+<table>
+  <tr><td></td></tr>
+  <!--tr><td>Row 2 (Separated by 15px)</td></tr-->
+</table>
+<label class="col-5 form-label me-4">Your Primarly Outlet 
+  <div class="border rounded p-2 bg-light" style="max-height:100px; overflow-y:auto;">
+    <div class="outlet-checkboxes">
+      {% for outlet in outlets %}
+        <div class="form-check">
+          <input class="form-check-input rep-checkbox" 
+                 type="checkbox" 
+                 name="rep_outlet_ids" 
+                 value="{{ outlet.outlet_id }}" 
+                 id="outlet_{{ outlet.outlet_id }}"
+                 {% if current_user.id in user_outlet_map and outlet.outlet_id in user_outlet_map[current_user.id] %}
+                   checked
+                 {% endif %}>
+          <label class="form-check-label" for="outlet_{{ outlet.outlet_id }}">
+            {{ outlet.name }}
+          </label>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</label>
+
+ 
+
+          <!-- Outlets -->
+	<label class="col-5 form-label">Assigned Outlets
+          <!--label class="form-label">Attached Outlets</label-->
+          <div class="border rounded p-2 bg-light" style="max-height:100px; overflow-y:auto;">
+            <div class="outlet-checkboxes">
+              {% for outlet in outlets %}
+                <div class="form-check">
+                  <input class="form-check-input" 
+                         type="checkbox" 
+                         name="all_outlet_ids" 
+                         value="{{ outlet.outlet_id }}" 
+                         id="outlet_{{ outlet.outlet_id }}"
+                         {% if current_user.id in user_outlet_map and outlet.outlet_id in user_outlet_map[current_user.id] %}
+                           checked
+                         {% endif %}>
+                  <label class="form-check-label" for="outlet_{{ outlet.outlet_id }}">
+                    {{ outlet.name }}
+                  </label>
+                </div>
+              {% endfor %}
             </div>
           </div>
         </div>
@@ -141,45 +181,193 @@
       </div>
     </div>
 
-    <!-- Submit -->
-    <div class="text-center mt-2">
-      <button type="submit" class="btn btn-warning btn-sm">Update User</button>
+
+
+<!-- Hidden field for action -->
+<input type="hidden" id="form_action" name="action" value="">
+
+<!-- Submit buttons -->
+<div class="text-center mt-2">
+  <button type="submit" class="btn btn-warning btn-sm"
+          onclick="return validateOutletSelection();">
+    Update User
+  </button>
+<!--/div-->
+
+
+
+    <!-- Submit buttons -->
+    <!--div class="text-center mt-2">
+      <button type="submit" class="btn btn-warning btn-sm"
+              onclick="document.getElementById('form_action').value='update';
+                       return confirm('Do you want to update this user?');">
+        Update User
+      </button-->
+
+
+
+      <button type="submit" class="btn btn-danger btn-sm"
+              onclick="document.getElementById('form_action').value='delete';
+                       return confirm('Are you sure you want to delete this user?');">
+        Delete User
+      </button>
     </div>
 
     {% if update_message %}
       <p class="mt-1 text-success small">{{ update_message }}</p>
     {% endif %}
+    {% if delete_message %}
+      <p class="mt-1 text-success small">{{ delete_message }}</p>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Direct link to Outlet Settings -->
+<div class="text-center mt-3">
+  <form method="get" action="/settings/outlet">
+    <button type="submit" class="btn btn-info btn-sm">
+      Goto Manage Outlets
+    </button>
   </form>
 </div>
 
 
-  <!-- Delete staff -->
-  <div class="border p-3 mb-3 rounded bg-danger bg-opacity-25">
-    <h5 class="text-center text-danger">🗑️ Delete Staff</h5>
-    <form method="post" action="/settings/manage_users" data-ajax="true"
-          onsubmit="return confirm('Are you sure you want to delete user ' + document.querySelector('[name=del_username]').options[document.querySelector('[name=del_username]').selectedIndex].text + '?');">
-      <input type="hidden" name="action" value="delete">
-      <div class="mb-2">
-        <label class="form-label">Select User</label>
-        <select name="del_username" class="form-select" required>
-          <option value="" selected>-- Select User --</option>
-          {% for u in users %}
-            <option value="{{ u.id }}">{{ u.staff_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="text-center">
-        <button type="submit" class="btn btn-danger">Delete User</button>
-      </div>
-      {% if delete_message %}
-        <p class="mt-2 text-success">{{ delete_message }}</p>
-      {% endif %}
-    </form>
-  </div>
+<script>
+document.querySelectorAll(".rep-checkbox").forEach(cb => {
+  cb.addEventListener("change", function(e) {
+    const checkedBoxes = document.querySelectorAll(".rep-checkbox:checked");
 
-</div>
+    if (checkedBoxes.length > 1) {
+      // Already one rep selected
+      const confirmReplace = confirm(
+        "⚠️ Only one outlet representative is allowed.\n" +
+        "Do you want to replace the previous representative with this one?"
+      );
+
+      if (confirmReplace) {
+        // Uncheck all others, keep only the current one
+        checkedBoxes.forEach(box => {
+          if (box !== cb) box.checked = false;
+        });
+      } else {
+        // Undo the new check
+        cb.checked = false;
+      }
+    }
+  });
+});
+</script>
 
 <script>
+function validateOutletSelection() {
+  // set action
+  document.getElementById('form_action').value = 'update';
+
+  // collect checked boxes
+  const primaryChecked = document.querySelectorAll('.rep-checkbox:checked');
+  const assignedChecked = document.querySelectorAll('.form-check-input:not(.rep-checkbox):checked');
+
+  // if assigned outlets exist but no primary outlet
+  if (assignedChecked.length > 0 && primaryChecked.length === 0) {
+    alert("⚠️ You must select at least one Primary Outlet if you assign outlets.");
+    return false; // stop form submission
+  }
+
+  // normal confirm
+  return confirm('Do you want to update this user?');
+}
+
+</script>
+
+
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const userSelect = document.querySelector("select[name='username']");
+  
+  userSelect.addEventListener("change", function() {
+    const userId = this.value;
+    if (!userId) return;
+
+    fetch(`/get_user_privileges/${userId}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+
+        // ✅ User properties
+        const activeCheckbox = document.querySelector("input[name='active']");
+        if (activeCheckbox) activeCheckbox.checked = !!data.active;
+
+        const roleSelect = document.querySelector("select[name='roles']");
+        if (roleSelect && data.role !== undefined) {
+          roleSelect.value = data.role;
+          document.querySelector("#role_label_hidden").value = data.role_label;
+        }
+
+        const privilegesSelect = document.querySelector("select[name='privileges']");
+        if (privilegesSelect && data.privileges !== undefined) {
+          privilegesSelect.value = data.privileges;
+          document.querySelector("#privileges_label_hidden").value = data.privileges_label;
+        }
+
+        // ✅ Outlet dropdown
+        const outletSelect = document.querySelector("select[name='outlet_id']");
+        if (outletSelect) {
+          outletSelect.innerHTML = "";
+          const defaultOption = document.createElement("option");
+          defaultOption.value = "";
+          defaultOption.textContent = "-- Select Outlet --";
+          outletSelect.appendChild(defaultOption);
+
+          if (Array.isArray(data.outlets)) {
+            data.outlets.forEach(outlet => {
+              const opt = document.createElement("option");
+              opt.value = outlet.outlet_id;
+              opt.textContent = outlet.outlet_label;
+              outletSelect.appendChild(opt);
+            });
+          }
+
+          if (data.primary_outlet && data.primary_outlet.outlet_id) {
+            outletSelect.value = data.primary_outlet.outlet_id;
+            document.querySelector("#outlet_label_hidden").value = data.primary_outlet.outlet_label;
+          }
+        }
+
+        // ✅ Auto-check mapped outlets
+        const outletCheckboxes = document.querySelectorAll("input[name='outlet_ids']");
+        if (outletCheckboxes && Array.isArray(data.mapped_outlet_ids)) {
+          outletCheckboxes.forEach(cb => {
+            cb.checked = data.mapped_outlet_ids.includes(parseInt(cb.value));
+          });
+        }
+
+        // ✅ Banner outlet info
+        const outletBanner = document.getElementById("attached_outlet");
+        if (outletBanner) {
+          const labels = data.outlets.map(o => o.outlet_label).join(", ");
+          outletBanner.value =
+            (labels || "No outlet assigned") +
+            (data.primary_outlet && data.primary_outlet.outlet_label
+              ? ` | Primary: ${data.primary_outlet.outlet_label}`
+              : "");
+        }
+      })
+      .catch(err => console.error("Error fetching user data:", err));
+  });
+});
+</script>
+
+
+
+
+
+
+<!--script>
 document.addEventListener("DOMContentLoaded", function() {
   const userSelect = document.querySelector("select[name='username']");
   
@@ -233,5 +421,8 @@ document.addEventListener("DOMContentLoaded", function() {
       .catch(err => console.error("Error fetching user data:", err));
   });
 });
-</script>
+</script-->
+
+
+
 {% endblock %}

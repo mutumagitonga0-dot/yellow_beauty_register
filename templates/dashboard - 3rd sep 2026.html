@@ -44,6 +44,25 @@
   </div>
 </header>
 
+<style>
+/* Slim field for textbox and dropdown */
+.slim-field {
+  width: 220px;       /* narrower width */
+  text-align: center;
+  margin: 0 auto;
+  padding: 4px 6px;   /* reduce padding */
+  font-size: 0.9rem;  /* slightly smaller text */
+}
+
+/* Compress header */
+.header {
+  background: rgba(255,255,102);
+  border-bottom: 3px solid #0078D4;
+  padding: 8px 12px;   /* reduce vertical padding */
+}
+</style>
+
+
 <main class="grid-container">
   <!-- Row 1 -->
   <div class="row">
@@ -63,8 +82,34 @@
       </p>
     </section>
   </div>
-
 <!--/main-->
+
+<script>
+/* Compact card style */
+.compact-card {
+  padding: 12px;        /* reduce padding */
+  margin-bottom: 10px;  /* less vertical spacing */
+}
+
+.compact-card h2 {
+  font-size: 1.1rem;    /* smaller heading */
+  margin-bottom: 6px;
+}
+
+.compact-card button {
+  padding: 6px 12px;    /* slimmer buttons */
+  font-size: 0.9rem;
+}
+
+
+.compact-card p,
+.compact-card ul {
+  font-size: 0.9rem;    /* smaller text */
+  margin-bottom: 4px;   /* tighter spacing */
+}
+
+</script>
+
 
  <div class="row">
   <section class="card summary compact-card">
@@ -79,7 +124,6 @@
 </div>
 
 </main>
-
 
 <script>
   // Live clock
@@ -112,7 +156,7 @@
         <div><strong>Clock-out:</strong> ${data.clock_out}</div>
         <div><strong>Work hours:</strong> ${data.work_hours}</div>
         <div><strong>Clock-in Counts:</strong> ${data.clock_in_count}</div>
-        <div><strong>Outlet:</strong> {{defaultoutletname}} </div>
+        <div><strong>Outlet:</strong> ${data.outlet || "None"}</div>
       `;
       document.getElementById("summaryText").innerHTML = summaryHtml;
     } catch (err) {
@@ -120,200 +164,6 @@
       console.error(err);
     }
   }
-
-
-function getLocationAndSend(endpoint, statusElementId) {
-  setBusy(true);
-  const statusEl = document.getElementById(statusElementId);
-  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-
-  let fallbackTriggered = false;
-
-  // Manual timeout fallback (only triggers if GPS never responds)
-  const fallbackTimer = setTimeout(() => {
-    if (!fallbackTriggered) {
-      fallbackTriggered = true;
-      statusEl.textContent = "⚠️ GPS timeout → using IP location...";
-      fetch("https://ipapi.co/json/")
-        .then(res => res.json())
-        .then(data => {
-          if (data.latitude && data.longitude) {
-            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
-            statusEl.textContent = "Using approximate IP location";
-          } else {
-            statusEl.textContent = "⚠️ Location unavailable";
-            setBusy(false);
-          }
-        })
-        .catch(() => {
-          statusEl.textContent = "⚠️ Location lookup failed";
-          setBusy(false);
-        });
-    }
-  }, 10000); // 10s timeout
-
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      if (!fallbackTriggered) {
-        fallbackTriggered = true;
-        clearTimeout(fallbackTimer);
-        sendToBackend(endpoint, statusElementId,
-          pos.coords.latitude,
-          pos.coords.longitude,
-          pos.coords.accuracy
-        );
-      }
-    },
-    err => {
-      if (!fallbackTriggered) {
-        fallbackTriggered = true;
-        clearTimeout(fallbackTimer);
-        statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
-        fetch("https://ipapi.co/json/")
-          .then(res => res.json())
-          .then(data => {
-            if (data.latitude && data.longitude) {
-              sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
-              statusEl.textContent = "Using approximate IP location";
-            } else {
-              statusEl.textContent = "⚠️ Location unavailable";
-              setBusy(false);
-            }
-          })
-          .catch(() => {
-            statusEl.textContent = "⚠️ Location lookup failed";
-            setBusy(false);
-          });
-      }
-    },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-  );
-}
-
-function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
-  const outletId = document.getElementById("selectedOutlet")?.value || null;
-
-  console.log("Sending to backend:", endpoint, { outletId, lat, lon, accuracy });
-
-  fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      outlet_id: outletId,
-      latitude: lat,
-      longitude: lon,
-      accuracy: accuracy
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById(statusElementId).textContent = data.success || data.error;
-    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
-      window.location.href = "/dashboard";
-    }
-  })
-  .catch(err => {
-    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
-  })
-  .finally(() => setBusy(false));
-}
-
-
-
-
-function suspend_getLocationAndSend(endpoint, statusElementId) {
-  setBusy(true);
-  const statusEl = document.getElementById(statusElementId);
-  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      // GPS success with accuracy metadata
-      sendToBackend(endpoint, statusElementId,
-        pos.coords.latitude,
-        pos.coords.longitude,
-        pos.coords.accuracy
-      );
-    },
-    err => {
-      // GPS failed → fallback to IP
-      statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
-      fetch("https://ipapi.co/json/")
-        .then(res => res.json())
-        .then(data => {
-          if (data.latitude && data.longitude) {
-            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
-            statusEl.textContent = "Using approximate IP location";
-          } else {
-            statusEl.textContent = "⚠️ Location unavailable";
-            setBusy(false);
-          }
-        })
-        .catch(() => {
-          statusEl.textContent = "⚠️ Location lookup failed";
-          setBusy(false);
-        });
-    },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 } // short timeout
-  );
-}
-
-function suspend_sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
-  const outletId = document.getElementById("selectedOutlet").value;
-
-  fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      outlet_id: outletid,
-      latitude: lat,
-      longitude: lon,
-      accuracy: accuracy
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById(statusElementId).textContent = data.success || data.error;
-    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
-      window.location.href = "/dashboard";
-    }
-  })
-  .catch(err => {
-    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
-  })
-  .finally(() => setBusy(false));
-}
-
-
-// Specific actions
- function checkLoginOnLoad() {
-  getLocationAndSend("/check_active_login_existence", "checkinStatus");
-}
-
- function clockInBtn() {
-  getLocationAndSend("/clockin", "checkinStatus");
-}
-
-function clockOut() {
-  getLocationAndSend("/clockout", "checkoutStatus");
-}
-
- function alertLastcheckoutOnLoad() {
-  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
-}
-
-document.addEventListener("DOMContentLoaded", function() {
-  if (document.getElementById("checkinStatus")) {
-    checkLoginOnLoad();
-  }
-  if (document.getElementById("checkoutStatus")) {
-    alertLastcheckoutOnLoad();
-  }
-  if (document.getElementById("summaryText")) {
-    loadSummary();
-  }
-});
-
 
 
 // Generic helper: tries GPS, falls back to IP, then sends to backend
@@ -378,6 +228,71 @@ function not_precise_sendToBackend(endpoint, statusElementId, lat, lon) {
 }
 
 
+
+function getLocationAndSend(endpoint, statusElementId) {
+  setBusy(true);
+  const statusEl = document.getElementById(statusElementId);
+  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // GPS success with accuracy metadata
+      sendToBackend(endpoint, statusElementId,
+        pos.coords.latitude,
+        pos.coords.longitude,
+        pos.coords.accuracy
+      );
+    },
+    err => {
+      // GPS failed → fallback to IP
+      statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+          if (data.latitude && data.longitude) {
+            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
+            statusEl.textContent = "Using approximate IP location";
+          } else {
+            statusEl.textContent = "⚠️ Location unavailable";
+            setBusy(false);
+          }
+        })
+        .catch(() => {
+          statusEl.textContent = "⚠️ Location lookup failed";
+          setBusy(false);
+        });
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 } // short timeout
+  );
+}
+
+function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
+  const outletId = document.getElementById("selectedOutlet").value;
+
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      outlet_id: outletId,
+      latitude: lat,
+      longitude: lon,
+      accuracy: accuracy
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById(statusElementId).textContent = data.success || data.error;
+    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
+      window.location.href = "/dashboard";
+    }
+  })
+  .catch(err => {
+    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+
 function sinle_outlet_sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
   fetch(endpoint, {
     method: "POST",
@@ -397,49 +312,34 @@ function sinle_outlet_sendToBackend(endpoint, statusElementId, lat, lon, accurac
   .finally(() => setBusy(false));
 }
 
+
+// Specific actions
+function checkLoginOnLoad() {
+  getLocationAndSend("/check_active_login_existence", "checkinStatus");
+}
+
+function clockInBtn() {
+  getLocationAndSend("/clockin", "checkinStatus");
+}
+
+function clockOut() {
+  getLocationAndSend("/clockout", "checkoutStatus");
+}
+
+function alertLastcheckoutOnLoad() {
+  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
+}
+
+// ✅ Trigger all on page load
+document.addEventListener("DOMContentLoaded", function() {
+  checkLoginOnLoad();
+  alertLastcheckoutOnLoad();
+  loadSummary();
+});
 </script>
 
+
 <style>
-/* Compact card style */
-.compact-card {
-  padding: 12px;        /* reduce padding */
-  margin-bottom: 10px;  /* less vertical spacing */
-}
-
-.compact-card h2 {
-  font-size: 1.1rem;    /* smaller heading */
-  margin-bottom: 6px;
-}
-
-.compact-card button {
-  padding: 6px 12px;    /* slimmer buttons */
-  font-size: 0.9rem;
-}
-
-
-.compact-card p,
-.compact-card ul {
-  font-size: 0.9rem;    /* smaller text */
-  margin-bottom: 4px;   /* tighter spacing */
-}
-
-/* Slim field for textbox and dropdown */
-.slim-field {
-  width: 220px;       /* narrower width */
-  text-align: center;
-  margin: 0 auto;
-  padding: 4px 6px;   /* reduce padding */
-  font-size: 0.9rem;  /* slightly smaller text */
-}
-
-/* Compress header */
-.header {
-  background: rgba(255,255,102);
-  border-bottom: 3px solid #0078D4;
-  padding: 8px 12px;   /* reduce vertical padding */
-}
-
-
 body {
   background: url("{{ url_for('static', filename='images/ybeauty_dashboard.png') }}") 
               no-repeat center center fixed;
@@ -508,8 +408,6 @@ button:disabled {
 button:hover:enabled {
   background-color: #005A9E;
 }
-
 </style>
-
 
 {% endblock %}

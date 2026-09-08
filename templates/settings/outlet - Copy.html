@@ -200,7 +200,7 @@
         <div class="form-check">
 	  <input class="form-check-input rep-checkbox"
                  type="checkbox"
-                 name="rep_user_ids"
+                 name="user_ids"
                  value="{{ user.id }}"
                  id="repuser_{{ user.id }}"
                  {% if selected_outlet and user.id in assighed_outlet_reps[selected_outlet.outlet_id] %}
@@ -224,7 +224,7 @@
         <div class="form-check">
           <input class="form-check-input"
                  type="checkbox"
-                 name="outlet_users_ids"
+                 name="user_ids"
                  value="{{ user.id }}"
                  id="user_{{ user.id }}"
                  {% if selected_outlet and user.id in all_assighed_users_per_outlet[selected_outlet.outlet_id] %}
@@ -292,16 +292,6 @@
   </div>
   {% endif %}
 </div>
-
-<!-- Direct link to Outlet User Settings -->
-<div class="text-center mt-3">
-  <form method="get" action="/settings/manage_users">
-    <button type="submit" class="btn btn-info btn-sm">
-      Goto Manage Users
-    </button>
-  </form>
-</div>
-
 
 <!-- Leaflet CSS & JS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />

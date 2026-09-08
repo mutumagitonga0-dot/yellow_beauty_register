@@ -129,7 +129,7 @@ function getLocationAndSend(endpoint, statusElementId) {
 
   let fallbackTriggered = false;
 
-  // Manual timeout fallback (only triggers if GPS never responds)
+  // Manual timeout fallback
   const fallbackTimer = setTimeout(() => {
     if (!fallbackTriggered) {
       fallbackTriggered = true;
@@ -150,12 +150,11 @@ function getLocationAndSend(endpoint, statusElementId) {
           setBusy(false);
         });
     }
-  }, 10000); // 10s timeout
+  }, 5000); // 5s timeout
 
   navigator.geolocation.getCurrentPosition(
     pos => {
       if (!fallbackTriggered) {
-        fallbackTriggered = true;
         clearTimeout(fallbackTimer);
         sendToBackend(endpoint, statusElementId,
           pos.coords.latitude,
@@ -188,34 +187,6 @@ function getLocationAndSend(endpoint, statusElementId) {
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
-}
-
-function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
-  const outletId = document.getElementById("selectedOutlet")?.value || null;
-
-  console.log("Sending to backend:", endpoint, { outletId, lat, lon, accuracy });
-
-  fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      outlet_id: outletId,
-      latitude: lat,
-      longitude: lon,
-      accuracy: accuracy
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById(statusElementId).textContent = data.success || data.error;
-    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
-      window.location.href = "/dashboard";
-    }
-  })
-  .catch(err => {
-    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
-  })
-  .finally(() => setBusy(false));
 }
 
 
@@ -258,7 +229,7 @@ function suspend_getLocationAndSend(endpoint, statusElementId) {
   );
 }
 
-function suspend_sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
+function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
   const outletId = document.getElementById("selectedOutlet").value;
 
   fetch(endpoint, {
