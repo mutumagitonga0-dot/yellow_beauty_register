@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 10000
 
 # Start with Gunicorn, binding to Render's dynamic $PORT
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT", "--workers", "4"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:10000", "--workers", "4"]
