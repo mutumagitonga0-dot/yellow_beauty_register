@@ -648,8 +648,33 @@ def no_warnings_login():
 
     return render_template("login.html")
 
-@app.route("/set-admin-pass")
-def set_admin_pass():
+@app.route("/reset-admin-pass", methods=["POST"])
+def reset_admin_pass():
+    token = request.args.get("token")
+    if token != INIT_SECRET:
+        return "Unauthorized", 403
+
+    #from werkzeug.security import generate_password_hash
+    # ✅ Explicitly lock to PBKDF2-SHA256
+    new_hash = generate_password_hash("evamutgi", method="pbkdf2:sha256")
+
+    user = Users.query.filter_by(username="SP_ADMIN").first()
+    if user:
+        user.password_hash = new_hash
+        db.session.commit()
+        return jsonify({
+            "status": "success",
+            "message": "✅ Admin password updated successfully. Raw password is 'evamutgi'"
+        }), 200
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "⚠️ SP_ADMIN not found."
+        }), 404
+
+
+@app.route("/outdated_set-admin-pass")
+def outdated_set_admin_pass():
     from werkzeug.security import generate_password_hash
     new_hash = generate_password_hash("12345")
     user = Users.query.filter_by(username="SP_ADMIN").first()
@@ -662,17 +687,17 @@ def set_admin_pass():
 
 @app.route("/", methods=["GET", "POST"])
 def login():
-    from werkzeug.security import generate_password_hash
-    print("generate_password_hash-12345",generate_password_hash("12345"))
+    #from werkzeug.security import generate_password_hash
+    #print("generate_password_hash-12345",generate_password_hash("12345"))
 
     if request.method == "POST":
         username = request.form["username"].lower()
         password = request.form["password"]
-        print("inputted username-",username,"inputted password-", password)
+        #print("inputted username-",username,"inputted password-", password)
 
         user = Users.query.filter_by(username=username).first()
-        print("fetched userpassword-",user.password_hash,"fetched username-",user.username)
-        print("compare inputted and existing password",check_password_hash(user.password_hash, password))
+        #print("fetched userpassword-",user.password_hash,"fetched username-",user.username)
+        #print("compare inputted and existing password",check_password_hash(user.password_hash, password))
 
         if user and not user.is_active:
             return jsonify({
