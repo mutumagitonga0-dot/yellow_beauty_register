@@ -294,10 +294,9 @@ def init_db():
         return "Unauthorized", 403
 
     with app.app_context():
-        # Ensure tables exist
         db.create_all()
-
         from sqlalchemy import text
+
         try:
             # Insert default SUPER_ADMINISTRATOR account if not already present
             db.session.execute(text("""
@@ -320,7 +319,7 @@ def init_db():
                 ON CONFLICT (username) DO NOTHING;
             """))
 
-            # Add privilege columns if missing (Postgres syntax)
+            # Add privilege columns if missing
             privilege_columns = [
                 ("suspended", "BOOLEAN", "FALSE"),
                 ("feed_entries", "BOOLEAN", "FALSE"),
@@ -419,7 +418,7 @@ def not_update_init_db():
                         '2026-08-01'             -- hire_date
                     );
                 END
-            """)) ON CONFLICT (username) DO NOTHING;
+            """))
             db.session.commit()
 
             # Add privilege columns if missing
