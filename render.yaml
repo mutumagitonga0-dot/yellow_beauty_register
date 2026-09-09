@@ -12,7 +12,7 @@ services:
       - key: SECRET_KEY
         value: "your_flask_secret_key"
       - key: INIT_SECRET
-        value: "your_init_secret"
+        value: "changeme"
 
 databases:
   - name: yellow_beauty_db
