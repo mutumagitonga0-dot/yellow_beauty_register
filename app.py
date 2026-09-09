@@ -628,6 +628,11 @@ def no_warnings_login():
         #    print("Password updated and hashed successfully.")
         #else:
         #    print("User not found.")
+
+        #trouble shooting pass
+        print("Checking has and pass",check_password_hash(user.password_hash, password))
+        print("hash",user.password_hash)
+
         if user and not user.is_active: #it was if suspended
             flash("You are currently suspended login into system, please contact your admin.", "danger")    
         elif user and check_password_hash(user.password_hash, password):
@@ -658,14 +663,16 @@ def set_admin_pass():
 @app.route("/", methods=["GET", "POST"])
 def login():
     from werkzeug.security import generate_password_hash
-    print(generate_password_hash("12345"))
+    print("generate_password_hash-12345",generate_password_hash("12345"))
 
     if request.method == "POST":
         username = request.form["username"].lower()
         password = request.form["password"]
-        print(username, password)
+        print("inputted username-",username,"inputted password-", password)
 
         user = Users.query.filter_by(username=username).first()
+        print("fetched userpassword-",user.password_hash,"fetched username-",user.username)
+        print("compare inputted and existing password",check_password_hash(user.password_hash, password))
 
         if user and not user.is_active:
             return jsonify({
