@@ -717,7 +717,7 @@ def login():
         else:
             return jsonify({
                 "status": "error",
-                "message": "⚠️ Invalid credentials, please try again."
+                "message": "⚠️ Invalid credentials, please try again or contact your administrator."
             }), 400
 
         #elif user and check_password_hash(user.password_hash, password):
