@@ -299,6 +299,94 @@ def init_db():
 
         from sqlalchemy import text
         try:
+            # Insert default SUPER_ADMINISTRATOR account if not already present
+            db.session.execute(text("""
+                INSERT INTO users (
+                    staff_name, username, password_hash, is_active, email,
+                    department, role, privileges, base_salary, hire_date
+                )
+                VALUES (
+                    'SUPER_ADMINISTRATOR',
+                    'SP_ADMIN',
+                    'scrypt:32768:8:1$HwXmeq1EUpSyRCSI$9f1ab94b977f3dd9827e68aaecc34464ffd0f2051f3d0ac74b2c8560b117ce115da3825c672d49e8ba5713e22b65ffb4b0923a7e78068cb91df8439c58fe01fc',
+                    TRUE,
+                    'admin@system.com',
+                    'Administration',
+                    1,
+                    1,
+                    2000,
+                    '2026-08-01'
+                )
+                ON CONFLICT (username) DO NOTHING;
+            """))
+
+            # Add privilege columns if missing (Postgres syntax)
+            privilege_columns = [
+                ("suspended", "BOOLEAN", "FALSE"),
+                ("feed_entries", "BOOLEAN", "FALSE"),
+                ("amend_entry", "BOOLEAN", "FALSE"),
+                ("provision1", "BOOLEAN", "FALSE"),
+                ("provision2", "BOOLEAN", "FALSE"),
+                ("provision3", "BOOLEAN", "FALSE"),
+                ("provision4", "BOOLEAN", "FALSE"),
+                ("provision5", "BOOLEAN", "FALSE"),
+                ("provision6", "BOOLEAN", "FALSE"),
+                ("provision7", "BOOLEAN", "FALSE"),
+                ("provision8", "BOOLEAN", "FALSE"),
+                ("provision9", "BOOLEAN", "FALSE"),
+            ]
+
+            for col_name, col_type, default in privilege_columns:
+                db.session.execute(text(f"""
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default};
+                """))
+
+            # Add username column with default if missing
+            db.session.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(80) DEFAULT 'tempuser' NOT NULL;
+            """))
+
+            # Add password_hash column with default if missing
+            db.session.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(200) DEFAULT 'changeme' NOT NULL;
+            """))
+
+            # Add status column with default if missing
+            db.session.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS status INT DEFAULT 1 NOT NULL;
+            """))
+
+            # Rename column 'inactive' to 'suspended' if it exists
+            db.session.execute(text("""
+                ALTER TABLE users RENAME COLUMN inactive TO suspended;
+            """))
+
+            # Drop column 'inactive' if still present
+            db.session.execute(text("""
+                ALTER TABLE users DROP COLUMN IF EXISTS inactive;
+            """))
+
+            db.session.commit()
+
+        except Exception as e:
+            db.session.rollback()
+            return f"Error altering table: {e}", 500
+
+    return "Tables created, altered, and admin seeded successfully!"
+
+
+@app.route("/notupdated_init-db")
+def not_update_init_db():
+    token = request.args.get("token")
+    if token != INIT_SECRET:
+        return "Unauthorized", 403
+
+    with app.app_context():
+        # Ensure tables exist
+        db.create_all()
+
+        from sqlalchemy import text
+        try:
             # Safely drop column 'inactive' by removing its default constraint first
             db.session.execute(text("""
             -- Insert default SUPER_ADMINISTRATOR account if not already present
@@ -331,7 +419,7 @@ def init_db():
                         '2026-08-01'             -- hire_date
                     );
                 END
-            """))
+            """)) ON CONFLICT (username) DO NOTHING;
             db.session.commit()
 
             # Add privilege columns if missing
@@ -487,9 +575,13 @@ def connect_sqlalchemy_database_through_cmd():
     # Full connection string
     conn_str = "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
     
-    #full cmd string 
+    #full cmd string  for tundagreen crates
     cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
+    #full cmd string  for yellow beauty register
+    cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://yellow_beauty_db_jz6i_user:4UFtcIgJlk8tkohGjjzToM2aZUdagNWR@dpg-dag58tm1egvs73ac713g-a.oregon-postgres.render.com/yellow_beauty_db_jz6i"
+
     # Run the command
+    
 
 
     #if this error : ERROR:  character with byte sequence 0xe2 0x80 0x91 in encoding "UTF8" has no equivalent in encoding "WIN1252"
