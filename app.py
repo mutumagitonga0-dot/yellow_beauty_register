@@ -320,52 +320,52 @@ def init_db():
             """))
 
             # Add privilege columns if missing
-            privilege_columns = [
-                ("suspended", "BOOLEAN", "FALSE"),
-                ("feed_entries", "BOOLEAN", "FALSE"),
-                ("amend_entry", "BOOLEAN", "FALSE"),
-                ("provision1", "BOOLEAN", "FALSE"),
-                ("provision2", "BOOLEAN", "FALSE"),
-                ("provision3", "BOOLEAN", "FALSE"),
-                ("provision4", "BOOLEAN", "FALSE"),
-                ("provision5", "BOOLEAN", "FALSE"),
-                ("provision6", "BOOLEAN", "FALSE"),
-                ("provision7", "BOOLEAN", "FALSE"),
-                ("provision8", "BOOLEAN", "FALSE"),
-                ("provision9", "BOOLEAN", "FALSE"),
-            ]
+            #privilege_columns = [
+            #    ("suspended", "BOOLEAN", "FALSE"),
+            #    ("feed_entries", "BOOLEAN", "FALSE"),
+            #    ("amend_entry", "BOOLEAN", "FALSE"),
+            #    ("provision1", "BOOLEAN", "FALSE"),
+            #    ("provision2", "BOOLEAN", "FALSE"),
+            #    ("provision3", "BOOLEAN", "FALSE"),
+            #    ("provision4", "BOOLEAN", "FALSE"),
+            #    ("provision5", "BOOLEAN", "FALSE"),
+            #    ("provision6", "BOOLEAN", "FALSE"),
+            #    ("provision7", "BOOLEAN", "FALSE"),
+            #   ("provision8", "BOOLEAN", "FALSE"),
+            #    ("provision9", "BOOLEAN", "FALSE"),
+            #]
 
-            for col_name, col_type, default in privilege_columns:
-                db.session.execute(text(f"""
-                    ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default};
-                """))
+            #for col_name, col_type, default in privilege_columns:
+                #db.session.execute(text(f"""
+            #        ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default};
+            #    """))
 
             # Add username column with default if missing
-            db.session.execute(text("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(80) DEFAULT 'tempuser' NOT NULL;
-            """))
+            #db.session.execute(text("""
+            #    ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(80) DEFAULT 'tempuser' NOT NULL;
+            #"""))
 
             # Add password_hash column with default if missing
-            db.session.execute(text("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(200) DEFAULT 'changeme' NOT NULL;
-            """))
+            #db.session.execute(text("""
+            #    ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(200) DEFAULT 'changeme' NOT NULL;
+            #"""))
 
             # Add status column with default if missing
-            db.session.execute(text("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS status INT DEFAULT 1 NOT NULL;
-            """))
+            #db.session.execute(text("""
+            #    ALTER TABLE users ADD COLUMN IF NOT EXISTS status INT DEFAULT 1 NOT NULL;
+            #"""))
 
             # Rename column 'inactive' to 'suspended' if it exists
-            db.session.execute(text("""
-                ALTER TABLE users RENAME COLUMN inactive TO suspended;
-            """))
+            #db.session.execute(text("""
+            #    ALTER TABLE users RENAME COLUMN inactive TO suspended;
+            #"""))
 
             # Drop column 'inactive' if still present
-            db.session.execute(text("""
-                ALTER TABLE users DROP COLUMN IF EXISTS inactive;
-            """))
+            #db.session.execute(text("""
+            #    ALTER TABLE users DROP COLUMN IF EXISTS inactive;
+            #"""))
 
-            db.session.commit()
+            #db.session.commit()
 
         except Exception as e:
             db.session.rollback()
