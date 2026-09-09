@@ -705,19 +705,42 @@ def login():
                 "message": "⚠️ You are currently suspended. Please contact your admin."
             }), 400
 
+        #elif user and check_password_hash(user.password_hash, password):
+        #    login_user(user, remember="remember" in request.form)
+        #    return jsonify({
+        #        "status": "success",
+        #        "message": "✅ Login successful",
+        #        "redirect": url_for("dashboard")   # ✅ include redirect target
+        #    }), 200
+
+        #else:
+        #    return jsonify({
+        #        "status": "error",
+        #        "message": "⚠️ Invalid credentials, please try again."
+        #    }), 400
+
         elif user and check_password_hash(user.password_hash, password):
             login_user(user, remember="remember" in request.form)
-            return jsonify({
-                "status": "success",
-                "message": "✅ Login successful",
-                "redirect": url_for("dashboard")   # ✅ include redirect target
-            }), 200
-
+            return f"""
+            <html><body>
+            ✅ Login successful<br>
+            Username: {user.username}<br>
+            Hash: {user.password_hash}<br>
+            Input password: {password}<br>
+            Password check: {check_password_hash(user.password_hash, password)}
+            </body></html>
+            """
         else:
-            return jsonify({
-                "status": "error",
-                "message": "⚠️ Invalid credentials, please try again."
-            }), 400
+            return f"""
+            <html><body>
+            ⚠️ Invalid credentials<br>
+            Input username: {username}<br>
+            Input password: {password}<br>
+            User found: {user is not None}<br>
+            Stored hash: {user.password_hash if user else 'None'}
+            </body></html>
+            """
+
 
     return render_template("login.html")
 
