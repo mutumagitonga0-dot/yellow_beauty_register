@@ -696,6 +696,7 @@ def login():
         #print("inputted username-",username,"inputted password-", password)
 
         user = Users.query.filter_by(username=username).first()
+        print("retrieved username",user.username,"retrieved user_pass_hass",user.password_hash,"is_user_active",user.is_active)
         #print("fetched userpassword-",user.password_hash,"fetched username-",user.username)
         #print("compare inputted and existing password",check_password_hash(user.password_hash, password))
 
@@ -705,8 +706,7 @@ def login():
                 "message": "⚠️ You are currently suspended. Please contact your admin."
             }), 400
 
-        #elif user and check_password_hash(user.password_hash, password):
-        elif user:
+        elif user and check_password_hash(user.password_hash, password):
             login_user(user, remember="remember" in request.form)
             return jsonify({
                 "status": "success",
