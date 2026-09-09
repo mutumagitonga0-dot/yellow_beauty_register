@@ -1,32 +1,19 @@
-
-databases:
-  - name: yellow_beauty_db
-    databaseName: yellow_beauty_db
-    user: yellow_beauty_db_user
-    plan: basic-256mb
-    region: oregon
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-    postgresMajorVersion: "18"
-    diskSizeGB: 1
-
-
 services:
   - type: web
     name: yellow-beauty-register
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 4"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:10000 --workers 4"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: yellow_beauty_db   # Render will inject full connection string
+          name: yellow_beauty_db
           property: connectionString
       - key: SECRET_KEY
         value: "your_flask_secret_key"
       - key: INIT_SECRET
         value: "your_init_secret"
+
 databases:
   - name: yellow_beauty_db
     plan: free
