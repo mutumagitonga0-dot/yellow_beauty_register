@@ -295,8 +295,8 @@ def init_db():
 
     with app.app_context():
         db.create_all()
-        from sqlalchemy import text
-        from werkzeug.security import generate_password_hash
+        #from sqlalchemy import text
+        #from werkzeug.security import generate_password_hash
 
         try:
             # ✅ Generate hash at runtime
@@ -330,6 +330,18 @@ def init_db():
 
     return "Tables created, altered, and admin seeded successfully!"
 
+@app.route("/seed-admin-pass")
+def seed_admin_pass():
+    from werkzeug.security import generate_password_hash
+    new_hash = generate_password_hash("evamutgi", method="pbkdf2:sha256")
+
+    user = Users.query.filter_by(username="sp_admin").first()
+    if user:
+        user.password_hash = new_hash
+        db.session.commit()
+        return "✅ SP_ADMIN password reset to evamutgi"
+    else:
+        return "⚠️ sp_admin not found"
 
 
 @app.route("/notupdated_init-db")
@@ -696,6 +708,7 @@ def login():
         #print("inputted username-",username,"inputted password-", password)
 
         user = Users.query.filter_by(username=username).first()
+        
         print("retrieved username",user.username,"retrieved user_pass_hass",user.password_hash,"is_user_active",user.is_active)
         #print("fetched userpassword-",user.password_hash,"fetched username-",user.username)
         #print("compare inputted and existing password",check_password_hash(user.password_hash, password))
