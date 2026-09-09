@@ -296,9 +296,14 @@ def init_db():
     with app.app_context():
         db.create_all()
         from sqlalchemy import text
+        from werkzeug.security import generate_password_hash
 
         try:
-            # Insert default SUPER_ADMINISTRATOR account if not already present
+            # ✅ Generate hash at runtime
+            admin_password = "12345"   # change this if you want a different raw password
+            admin_hash = generate_password_hash(admin_password)
+
+            # ✅ Insert default SUPER_ADMINISTRATOR account if not already present
             db.session.execute(text("""
                 INSERT INTO users (
                     staff_name, username, password_hash, is_active, email,
@@ -307,7 +312,7 @@ def init_db():
                 VALUES (
                     'SUPER_ADMINISTRATOR',
                     'SP_ADMIN',
-                    'scrypt:32768:8:1$HwXmeq1EUpSyRCSI$9f1ab94b977f3dd9827e68aaecc34464ffd0f2051f3d0ac74b2c8560b117ce115da3825c672d49e8ba5713e22b65ffb4b0923a7e78068cb91df8439c58fe01fc',
+                    :password_hash,
                     TRUE,
                     'admin@system.com',
                     'Administration',
@@ -317,61 +322,14 @@ def init_db():
                     '2026-08-01'
                 )
                 ON CONFLICT (username) DO NOTHING;
-            """))
-
-            # Add privilege columns if missing
-            #privilege_columns = [
-            #    ("suspended", "BOOLEAN", "FALSE"),
-            #    ("feed_entries", "BOOLEAN", "FALSE"),
-            #    ("amend_entry", "BOOLEAN", "FALSE"),
-            #    ("provision1", "BOOLEAN", "FALSE"),
-            #    ("provision2", "BOOLEAN", "FALSE"),
-            #    ("provision3", "BOOLEAN", "FALSE"),
-            #    ("provision4", "BOOLEAN", "FALSE"),
-            #    ("provision5", "BOOLEAN", "FALSE"),
-            #    ("provision6", "BOOLEAN", "FALSE"),
-            #    ("provision7", "BOOLEAN", "FALSE"),
-            #   ("provision8", "BOOLEAN", "FALSE"),
-            #    ("provision9", "BOOLEAN", "FALSE"),
-            #]
-
-            #for col_name, col_type, default in privilege_columns:
-                #db.session.execute(text(f"""
-            #        ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default};
-            #    """))
-
-            # Add username column with default if missing
-            #db.session.execute(text("""
-            #    ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(80) DEFAULT 'tempuser' NOT NULL;
-            #"""))
-
-            # Add password_hash column with default if missing
-            #db.session.execute(text("""
-            #    ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(200) DEFAULT 'changeme' NOT NULL;
-            #"""))
-
-            # Add status column with default if missing
-            #db.session.execute(text("""
-            #    ALTER TABLE users ADD COLUMN IF NOT EXISTS status INT DEFAULT 1 NOT NULL;
-            #"""))
-
-            # Rename column 'inactive' to 'suspended' if it exists
-            #db.session.execute(text("""
-            #    ALTER TABLE users RENAME COLUMN inactive TO suspended;
-            #"""))
-
-            # Drop column 'inactive' if still present
-            #db.session.execute(text("""
-            #    ALTER TABLE users DROP COLUMN IF EXISTS inactive;
-            #"""))
-
-            #db.session.commit()
+            """), {"password_hash": admin_hash})
 
         except Exception as e:
             db.session.rollback()
             return f"Error altering table: {e}", 500
 
     return "Tables created, altered, and admin seeded successfully!"
+
 
 
 @app.route("/notupdated_init-db")
@@ -685,9 +643,23 @@ def no_warnings_login():
 
     return render_template("login.html")
 
+@app.route("/set-admin-pass")
+def set_admin_pass():
+    from werkzeug.security import generate_password_hash
+    new_hash = generate_password_hash("12345")
+    user = Users.query.filter_by(username="SP_ADMIN").first()
+    if user:
+        user.password_hash = new_hash
+        db.session.commit()
+        return f"Admin password updated with hash: {new_hash}"
+    return "SP_ADMIN not found", 404
+
 
 @app.route("/", methods=["GET", "POST"])
 def login():
+    from werkzeug.security import generate_password_hash
+    print(generate_password_hash("12345"))
+
     if request.method == "POST":
         username = request.form["username"].lower()
         password = request.form["password"]
