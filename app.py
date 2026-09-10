@@ -703,7 +703,8 @@ def login():
     #print("generate_password_hash-12345",generate_password_hash("12345"))
 
     if request.method == "POST":
-        username = request.form["username"].lower()
+        #username = request.form["username"].lower()
+        username = request.form["username"]
         password = request.form["password"]
         #print("inputted username-",username,"inputted password-", password)
 
