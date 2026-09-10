@@ -290,6 +290,7 @@ PRIVILEGE_LABELS = {
 @app.route("/init-db")
 def init_db():
     token = request.args.get("token")
+    date=date.today()
     if token != INIT_SECRET:
         return "Unauthorized", 403
 
@@ -301,7 +302,7 @@ def init_db():
         try:
             # ✅ Generate hash at runtime
             admin_password = "12345"   # change this if you want a different raw password
-            admin_hash = generate_password_hash(admin_password)
+            admin_hash = generate_password_hash(admin_password,method="pbkdf2:sha256")
 
             # ✅ Insert default SUPER_ADMINISTRATOR account if not already present
             db.session.execute(text("""
@@ -310,7 +311,7 @@ def init_db():
                     department, role, privileges, base_salary, hire_date
                 )
                 VALUES (
-                    'SUPER_ADMINISTRATOR',
+                    'SP_ADMIN',
                     'SP_ADMIN',
                     :password_hash,
                     TRUE,
@@ -319,10 +320,10 @@ def init_db():
                     1,
                     1,
                     2000,
-                    '2026-08-01'
+                    :hire_date
                 )
                 ON CONFLICT (username) DO NOTHING;
-            """), {"password_hash": admin_hash})
+            """), {"password_hash": admin_hash},{"hire_date":date})
 
         except Exception as e:
             db.session.rollback()
@@ -1339,6 +1340,65 @@ def outlet_settings():
         if not action and outlet_id:
             selected_outlet = Outlet.query.get(outlet_id)
 
+        # CREATE
+        elif action == "create":
+            last_outlet = Outlet.query.order_by(Outlet.outlet_id.desc()).first()
+            next_outlet_id = (last_outlet.outlet_id + 1) if last_outlet else 1000
+
+            new_name = request.form.get('name')
+            new_address = request.form.get('address')
+
+            # Duplicate checks
+            if Outlet.query.filter_by(name=new_name).first():
+                return jsonify({"error": f"⚠️ Outlet name '{new_name}' already exists."}), 400
+            if Outlet.query.filter_by(address=new_address).first():
+                return jsonify({"error": f"⚠️ Outlet address '{new_address}' already exists."}), 400
+
+            new_user_id = request.form.get('user_id')
+
+            if new_user_id:
+                existing_primary = AssignedOutlet.query.filter(
+                    AssignedOutlet.user_id == new_user_id,
+                    AssignedOutlet.primary_outlet_id.isnot(None)
+                ).first()
+                if existing_primary:
+                    return jsonify({
+                        "error": f"⚠️ User already primarily attached to outlet ID {existing_primary.primary_outlet_id}."
+                    }), 400
+
+            new_outlet = Outlet(
+                outlet_id=next_outlet_id,
+                name=new_name,
+                latitude=float(request.form.get('latitude')) if request.form.get('latitude') else None,
+                longitude=float(request.form.get('longitude')) if request.form.get('longitude') else None,
+                address=new_address,
+                clock_in_radius=int(request.form.get('clock_in_radius')) if request.form.get('clock_in_radius') else 50
+            )
+            db.session.add(new_outlet)
+            db.session.commit()
+
+            if new_user_id:
+                assignment = AssignedOutlet(
+                    user_id=int(new_user_id),
+                    outlet_id=new_outlet.outlet_id,
+                    primary_outlet_id=new_outlet.outlet_id
+                )
+                db.session.add(assignment)
+                db.session.commit()
+
+            return jsonify({
+                "success": f"New outlet created successfully with ID {next_outlet_id}!",
+                "outlet": {
+                    "outlet_id": new_outlet.outlet_id,
+                    "name": new_outlet.name,
+                    "address": new_outlet.address,
+                    "latitude": new_outlet.latitude,
+                    "longitude": new_outlet.longitude,
+                    "clock_in_radius": new_outlet.clock_in_radius,
+                    "user_id": int(new_user_id) if new_user_id else None
+                }
+            })
+
         elif action == "update":
             selected_outlet = Outlet.query.filter_by(outlet_id=outlet_id).first()
             if not selected_outlet:
@@ -1382,6 +1442,25 @@ def outlet_settings():
 
             db.session.commit()
             return jsonify({"success": "Outlet updated successfully!"})
+
+        # DELETE
+        elif action == "delete":
+            selected_outlet = Outlet.query.filter_by(outlet_id=outlet_id).first()
+            if selected_outlet:
+                AssignedOutlet.query.filter_by(outlet_id=selected_outlet.outlet_id).delete()
+                db.session.delete(selected_outlet)
+                db.session.commit()
+                return jsonify({
+                    "success": "Outlet deleted successfully!",
+                    "outlet": {
+                        "outlet_id": selected_outlet.outlet_id,
+                        "name": selected_outlet.name,
+                        "address": selected_outlet.address,
+                        "latitude": selected_outlet.latitude,
+                        "longitude": selected_outlet.longitude,
+                        "clock_in_radius": selected_outlet.clock_in_radius
+                    }
+                })
 
         # DELETE logic unchanged...
         # CREATE logic unchanged...
