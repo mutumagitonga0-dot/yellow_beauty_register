@@ -846,7 +846,7 @@ def verify_clock_action(action, outlet_id=None):
         if primary_assignment:
             #outlet = Outlet.query.filter_by(id=primary_assignment.outlet_id).first()
             outlet = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
-            print("main outlet_id",outlet)
+            #print("main outlet_id",outlet)
             if outlet:
                 dist = haversine(float(user_lat), float(user_lon),
                                  float(outlet.latitude), float(outlet.longitude))
@@ -1701,7 +1701,7 @@ def get_user_privileges(user_id):
         return jsonify({"error": "User not found"}), 404
 
     assignments = AssignedOutlet.query.filter_by(user_id=user_id).all()
-    print("assignments", assignments)
+    #print("assignments", assignments)
 
     outlet_list = []
     mapped_outlet_ids = []
@@ -1721,8 +1721,8 @@ def get_user_privileges(user_id):
         if ao.primary_outlet_id:
             primary_outlet = Outlet.query.get(ao.primary_outlet_id)
 
-    print("user_id-2036", user.id)
-    print("primary_outlet-2037", primary_outlet)
+    #print("user_id-2036", user.id)
+    #print("primary_outlet-2037", primary_outlet)
     #print("mapped_outlet_ids-2037", mapped_outlet_ids)
 
     return jsonify({
