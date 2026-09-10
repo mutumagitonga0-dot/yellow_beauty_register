@@ -1081,12 +1081,12 @@ def today_summary():
     last_record = records[-1]
     if last_record.check_out_time:
         summary["clock_out"] = (
-            f"You last clocked out at {last_record.check_out_time.strftime('%H:%M')} "
+            f"You last clocked out at {last_record.check_out_time.strftime('%HH:%M')} "
             f"from {last_record.outlet_name or 'None'}"
         )
     else:
         summary["clock_out"] = (
-            f"You are still logged in since {last_record.check_in_time.strftime('%H:%M')} "
+            f"You are still logged in since {last_record.check_in_time.strftime('%HH:%M')} "
             f"at {last_record.outlet_name or 'None'}"
         )
 
