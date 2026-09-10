@@ -1453,16 +1453,16 @@ def reset_password(token):
         return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
 
     if request.method == "POST":
-        print("tracing point 2237")
+        #print("tracing point 2237")
         current_password = request.form.get("current_password")  # optional
         new_password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
 
         # If current_password was provided, validate it
         if current_password:
-            print("current_password:", current_password)
-            print("new_password:", new_password)
-            print("confirm_password:", confirm_password)
+            #print("current_password:", current_password)
+            #print("new_password:", new_password)
+            #print("confirm_password:", confirm_password)
             if not check_password_hash(user.password_hash, current_password):
                 return jsonify({"status": "error", "message": "⚠️ Current password is incorrect."}), 400
 
@@ -1474,7 +1474,7 @@ def reset_password(token):
             return jsonify({"status": "error", "message": "⚠️ Password must be at least 5 characters long."}), 400
 
         # Update securely
-        user.password_hash = generate_password_hash(new_password)
+        user.password_hash = generate_password_hash(new_password,method="pbkdf2:sha256")
         db.session.commit()
 
         return jsonify({"status": "success", "message": "✅ Password updated successfully."}), 200
