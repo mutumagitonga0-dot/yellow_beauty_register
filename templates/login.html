@@ -128,12 +128,6 @@
 </div>
 
 <!--script>
-// Show/Hide Password Toggle
-const togglePasswordCheck = document.getElementById('togglePasswordCheck');
-const passwordInput = document.getElementById('password');
-togglePasswordCheck.addEventListener('change', () => {
-  passwordInput.setAttribute('type', togglePasswordCheck.checked ? 'text' : 'password');
-});
 
 // Handle login form via fetch
 document.getElementById("loginForm").addEventListener("submit", function(e) {
@@ -160,6 +154,15 @@ document.getElementById("loginForm").addEventListener("submit", function(e) {
 </script-->
 
 <script>
+
+// Show/Hide Password Toggle
+const togglePasswordCheck = document.getElementById('togglePasswordCheck');
+const passwordInput = document.getElementById('password');
+togglePasswordCheck.addEventListener('change', () => {
+  passwordInput.setAttribute('type', togglePasswordCheck.checked ? 'text' : 'password');
+});
+
+
 document.getElementById("loginForm").addEventListener("submit", function(e) {
   e.preventDefault();
   const formData = new FormData(this);
