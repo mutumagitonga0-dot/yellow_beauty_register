@@ -655,7 +655,7 @@ def reset_admin_pass():
 def login():
     if request.method == "POST":
         #username = request.form["username"].lower()
-        username = request.form["username"]
+        username = request.form["username"].upper()
         password = request.form["password"]
 
         user = Users.query.filter_by(username=username).first()
