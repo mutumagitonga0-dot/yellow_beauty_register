@@ -704,7 +704,7 @@ def login():
 
     if request.method == "POST":
         #username = request.form["username"].lower()
-        username = request.form["username"]
+        username = request.form["username"].upper()
         password = request.form["password"]
         #print("inputted username-",username,"inputted password-", password)
 
@@ -2210,7 +2210,7 @@ def manage_users():
         action = request.form.get("action")
 
         if action == "create":
-            name = request.form.get("name")
+            name = request.form.get("name").upper()
             plain_password = request.form.get("password")
             existing_user = Users.query.filter_by(staff_name=name).first()
             role_user = request.form.get("role")
