@@ -332,7 +332,7 @@ def init_db():
 
 @app.route("/seed-admin-pass")
 def seed_admin_pass():
-    from werkzeug.security import generate_password_hash
+    #from werkzeug.security import generate_password_hash
     new_hash = generate_password_hash("evamutgi", method="pbkdf2:sha256")
 
     user = Users.query.filter_by(username="sp_admin").first()
@@ -2218,7 +2218,8 @@ def manage_users():
             if existing_user:
                 return jsonify({"error": f"Request declined, User '{name}' already exists!"}), 400
 
-            hashed_pw = generate_password_hash(plain_password)
+            hashed_pw = generate_password_hash(plain_password, method="pbkdf2:sha256")
+            #hashed_pw = generate_password_hash(plain_password)
             new_user = Users(
                 staff_name=name,
                 username=name,
