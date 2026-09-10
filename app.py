@@ -704,7 +704,7 @@ def login():
 
     if request.method == "POST":
         #username = request.form["username"].lower()
-        username = request.form["username"].upper()
+        username = request.form["username"]
         password = request.form["password"]
         #print("inputted username-",username,"inputted password-", password)
 
@@ -2235,8 +2235,9 @@ def manage_users():
 
         elif action == "update":
             user_id = request.form.get("username")
-            new_name = request.form.get("new_name")
+            new_name = request.form.get("new_name").upper()
             user = Users.query.get(user_id)
+           
 
             if not user:
                 return jsonify({"error": "Request declined, User not found"}), 404
@@ -2246,6 +2247,7 @@ def manage_users():
 
             # Update user fields
             user.staff_name = new_name
+            user.username = new_name
             user.is_active = bool(request.form.get("active"))
             user.role = request.form.get("roles")
             user.privileges = request.form.get("privileges")
@@ -2283,7 +2285,8 @@ def manage_users():
 
 
         elif action == "delete":
-            user_id = request.form.get("del_username")
+            user_id = request.form.get("username")
+            print("delete user_id", user_id)
             user = Users.query.get(user_id)
             if not user:
                 return jsonify({"error": "User not found"}), 404
