@@ -32,7 +32,7 @@
           <p><strong>MainStore Allocated:</strong> {{ outletname }}</p>
 	  <p><strong>Other Stores Assighed:</strong> 
              {% for outlet in assigned_outlets %}
-             {{ outlet.label }}{% if not loop.last %}, {% endif %}
+             {{ outlet.outletname }}{% if not loop.last %}, {% endif %}
                {% endfor %}
            </p>
           <p><strong>Email:</strong> {{ current_user.email }}</p>

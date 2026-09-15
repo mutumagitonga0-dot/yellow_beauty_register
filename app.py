@@ -701,12 +701,18 @@ def profile():
     user_id=current_user.id
     #token = serializer.dumps(user_id, salt="password-reset-salt")
     token = serializer.dumps(user_id, salt="password-reset")
-    default_outlet, assigned_outlets,active_outlet_id = get_current_user_outlets(user_id)
+    assigned_outlets,active_outlet_id = get_current_user_outlets(user_id)
+
+    #Assume mapped_outlet_ids is your list of dicts
+    default_outlet = next(
+      (o for o in assigned_outlets if o.get("is_primary")), 
+       None
+      )
 
     return render_template("profile.html",
                            attendance=attendance,
                            token=token,
-                           outletname=default_outlet,
+                           outletname=default_outlet["outletname"] if default_outlet else None,
                            assigned_outlets =assigned_outlets,
                            leave=leave)
 
