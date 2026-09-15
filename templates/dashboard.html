@@ -39,7 +39,7 @@
   <select id="other_assigned_outlets" class="form-select slim-field" size="1">
     {% for outlet in assignedoutlets %}
       <option value="{{ outlet.id }}"
-              {% if active_outlet_id == outlet.id %}selected{% endif %}>
+              {% if active_outlet_id == outlet.outlet_id %}selected{% endif %}>
         {{ outlet.outletname }}
       </option>
     {% endfor %}

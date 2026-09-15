@@ -856,9 +856,9 @@ def dashboard():
     if not user:
       return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
     
-    print("dashboard user_id",user_id)
+    #print("dashboard user_id",user_id)
     outlets, unclosed_clockin_event_outlet_id= get_current_user_outlets(user_id=user_id)
-    print("dashboard user primary outlet","other outlets",outlets)
+    #print("dashboard user primary outlet","other outlets",outlets)
 
     #default_outlet, assigned_outlets,active_outlet_id = get_current_user_outlets()
     #print("default_outlet at 737",default_outlet,"assigned_outlets",assigned_outlets)
@@ -1345,7 +1345,7 @@ def today_summary():
     last_record = records[-1]
     if last_record.check_out_time:
         summary["clock_out"] = (
-            f"You last clocked out at {last_record.check_out_time.strftime('%HH:%M')} "
+            f"You last clocked out at {format_local_time(last_record.check_out_time)} "
             f"from {last_record.outlet_name or 'None'}"
         )
     else:
