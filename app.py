@@ -881,6 +881,18 @@ def dashboard():
     assignedoutlets=outlets)
     
 
+from zoneinfo import ZoneInfo
+
+def format_local_time(dt):
+    """Convert UTC datetime to Nairobi local time string."""
+    if dt is None:
+        return "N/A"
+    # Ensure dt is timezone-aware
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    local_dt = dt.astimezone(ZoneInfo("Africa/Nairobi"))
+    return local_dt.strftime("%Y-%m-%d %H:%M:%S")
+
 # --- ROUTES ---
 def verify_clock_action(action, outlet_id=None):
     data = request.json
@@ -901,8 +913,8 @@ def verify_clock_action(action, outlet_id=None):
     accuracy = data.get("accuracy")
 
     # Treat stored time as UTC, then convert
-    utc = pytz.utc
-    nairobi_tz = pytz.timezone("Africa/Nairobi")
+    #utc = pytz.utc
+    #nairobi_tz = pytz.timezone("Africa/Nairobi")
 
 
     if not user_lat or not user_lon:
@@ -974,15 +986,15 @@ def verify_clock_action(action, outlet_id=None):
                                   .first()
 
     if action == "clockin":
-        utc_time = utc.localize(last_record.check_in_time)
-        local_time = utc_time.astimezone(nairobi_tz)
+        #utc_time = utc.localize(last_record.check_in_time)
+        #local_time = utc_time.astimezone(nairobi_tz)
         
         if last_record and last_record.check_out_time is None:
             # Rule 1: Already clocked in at ANY outlet
             if last_record.date == date.today():
                 return False, {
                     "error": f"You are already clocked in at {last_record.outlet_name} "
-                             f"since {local_time}. Please clock out first."
+                             f"since {format_local_time(last_record.check_in_time)}. Please clock out first."
                 }, None, None, None, None, last_record
             else:
                 # Rule 2: Previous day unclosed session
@@ -1002,7 +1014,7 @@ def verify_clock_action(action, outlet_id=None):
     elif action == "status":
         if last_record and last_record.check_out_time is None:
             return False, {"error": f"You are already clocked in at {last_record.outlet_name} "
-                                    f"since {last_record.check_in_time}"}, None, None, None, None, last_record
+                                    f"since {format_local_time(last_record.check_in_time)}"}, None, None, None, None, last_record
         return True, {"success": "No active login, you can clock in"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
 
 
