@@ -1350,7 +1350,7 @@ def today_summary():
         )
     else:
         summary["clock_out"] = (
-            f"You are still logged in since {last_record.check_in_time.strftime('%HH:%M')} "
+            f"You are still logged in since {format_local_time(last_record.check_in_time).strftime('%HH:%M')} "
             f"at {last_record.outlet_name or 'None'}"
         )
 
