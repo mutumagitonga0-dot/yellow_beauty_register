@@ -701,7 +701,7 @@ def profile():
     user_id=current_user.id
     #token = serializer.dumps(user_id, salt="password-reset-salt")
     token = serializer.dumps(user_id, salt="password-reset")
-    default_outlet, assigned_outlets = get_current_user_outlets()
+    default_outlet, assigned_outlets,active_outlet_id = get_current_user_outlets(user_id)
 
     return render_template("profile.html",
                            attendance=attendance,
@@ -743,7 +743,53 @@ def admin_required(f):
 def employees():
     return render_template('admin/employees.html')
 
-def get_current_user_outlets():
+
+def get_current_user_outlets(user_id=None):
+    # Get all assignments for the current user
+    #assignments = AssignedOutlet.query.filter_by(user_id=current_user.id).all()
+    #print("user_id",user_id)
+    assignments = AssignedOutlet.query.filter_by(user_id=user_id)
+    #print("assignments",assignments)
+    primary_outlet = None
+    outlets = []
+
+    # Find active attendance record (still clocked in)
+    #active_record = Attendance.query.filter_by(
+    #    user_id=current_user.id,
+    #    check_out_time=None
+    #).order_by(Attendance.id.desc()).first()
+   
+    active_record = Attendance.query.filter_by(
+        user_id=user_id,
+        check_out_time=None
+    ).order_by(Attendance.id.desc()).first()
+
+
+
+    unclosed_clockin_event_outlet_id = active_record.outlet_id if active_record else None
+
+    for assignment in assignments:
+        outlet = Outlet.query.filter_by(outlet_id=assignment.outlet_id).first()
+        if outlet:
+            outlets.append({
+                "id": outlet.outlet_id,   # business ID
+                "outletname": outlet.name,
+                "unclosed_clockin_event": (outlet.outlet_id == unclosed_clockin_event_outlet_id),  # flag active outlet
+                "is_primary": (outlet.outlet_id == assignment.primary_outlet_id) # Flag if this assignment marks the primary outlet
+            })
+            # If this assignment marks a primary outlet, set as default
+            #if assignment.primary_outlet_id and assignment.primary_outlet_id == outlet.id:
+            #    primary_outlet = outlet.name
+
+    # If no explicit primary, fall back to first outlet
+    #if not primary_outlet and outlets:
+    #    primary_outlet = outlets[0]["outletname"]
+
+
+    return outlets, unclosed_clockin_event_outlet_id
+
+
+def outdate_get_current_user_outlets():
     # Get all assignments for the current user
     assignments = AssignedOutlet.query.filter_by(user_id=current_user.id).all()
     #print("current_userid",current_user.id)
@@ -798,18 +844,154 @@ def dashboard():
     #else:
     #    outletname = "None"
     #,attachedoutletname=
-   
-    default_outlet, assigned_outlets = get_current_user_outlets()
+    user_id=current_user.id
+    user = Users.query.get(user_id)
+    if not user:
+      return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
+    
+    print("dashboard user_id",user_id)
+    outlets, unclosed_clockin_event_outlet_id= get_current_user_outlets(user_id=user_id)
+    print("dashboard user primary outlet","other outlets",outlets)
+
+    #default_outlet, assigned_outlets,active_outlet_id = get_current_user_outlets()
     #print("default_outlet at 737",default_outlet,"assigned_outlets",assigned_outlets)
+
+    #Assume mapped_outlet_ids is your list of dicts
+    primary_outlet = next(
+    (o for o in outlets if o.get("is_primary")), 
+    None
+    )
+    #Assume mapped_outlet_ids is your list of dicts
+    activelyassighedoutlet = next(
+    (o for o in outlets if o.get("unclosed_clockin_event")), 
+    None
+    )
 
     return render_template(
     "dashboard.html",
-    defaultoutletname=default_outlet,
-    assignedoutlets=assigned_outlets)
+    defaultoutletname=primary_outlet["outletname"] if primary_outlet else None,
+    activelyassignedoutletname=activelyassighedoutlet["outletname"] if activelyassighedoutlet  else None,
+    assignedoutlets=outlets)
     
 
 # --- ROUTES ---
 def verify_clock_action(action, outlet_id=None):
+    data = request.json
+    user_lat = data.get("latitude")
+    user_lon = data.get("longitude")
+    accuracy = data.get("accuracy")
+
+    if not user_lat or not user_lon:
+        return False, {"error": "Location required"}, None, None, None, None, None
+
+    # ... existing outlet selection logic ...
+        #print("checking clock in action -757")
+    data = request.json
+    user_lat = data.get("latitude")
+    #print("user_lat", user_lat)
+    user_lon = data.get("longitude")
+    #print("user_lon", user_lon)
+    accuracy = data.get("accuracy")
+
+    if not user_lat or not user_lon:
+        return False, {"error": "Location required"}, None, None, None, None, None
+
+    outlet = None
+    distance = None
+
+    # Step 1: If outlet_id explicitly provided, validate assignment
+    if outlet_id:
+        #outlet = Outlet.query.filter_by(id=outlet_id).first()
+        outlet = Outlet.query.filter_by(outlet_id=outlet_id).first()
+        assigned = AssignedOutlet.query.filter_by(
+            user_id=current_user.id,
+            outlet_id=outlet_id
+        ).first()
+        if not outlet or not assigned:
+            return False, {"error": "You are not assigned to this outlet"}, None, None, None, None, None
+    else:
+        # Step 2: Try primary outlet first
+       #from sqlalchemy import not_
+        primary_assignment = AssignedOutlet.query.filter(
+            AssignedOutlet.user_id == current_user.id,
+            AssignedOutlet.primary_outlet_id.isnot(None)   # ✅ proper SQLAlchemy expression
+        ).first()
+
+        #print("main outlet assighed",primary_assignment)
+        if primary_assignment:
+            #outlet = Outlet.query.filter_by(id=primary_assignment.outlet_id).first()
+            outlet = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
+            #print("main outlet_id",outlet)
+            if outlet:
+                dist = haversine(float(user_lat), float(user_lon),
+                                 float(outlet.latitude), float(outlet.longitude))
+                if dist <= float(outlet.clock_in_radius):
+                    distance = dist
+                else:
+                    outlet = None  # fail → fallback to other outlets
+
+        # Step 3: Fallback to other assigned outlets
+        if not outlet:
+            assignments = AssignedOutlet.query.filter_by(user_id=current_user.id).all()
+            for a in assignments:
+                o = Outlet.query.filter_by(outlet_id=a.outlet_id).first()
+                if not o:
+                    continue
+                dist = haversine(float(user_lat), float(user_lon),
+                                 float(o.latitude), float(o.longitude))
+                if dist <= float(o.clock_in_radius):
+                    outlet = o
+                    distance = dist
+                    break
+
+        if not outlet:
+            return False, {"error": "No valid outlet found within radius,you are"}, None, None, None, None, None
+
+
+    # Step 4: Distance validation
+    if distance is None:
+        distance = haversine(float(user_lat), float(user_lon),
+                             float(outlet.latitude), float(outlet.longitude))
+    if distance > float(outlet.clock_in_radius):
+        return False, {"error": f"You are not within {outlet.name} radius"}, None, None, None, None, None
+
+
+    # Step 5: Check last record for this user
+    last_record = Attendance.query.filter_by(user_id=current_user.id)\
+                                  .order_by(Attendance.id.desc())\
+                                  .first()
+
+    if action == "clockin":
+        if last_record and last_record.check_out_time is None:
+            # Rule 1: Already clocked in at ANY outlet
+            if last_record.date == date.today():
+                return False, {
+                    "error": f"You are already clocked in at {last_record.outlet_name} "
+                             f"since {last_record.check_in_time}. Please clock out first."
+                }, None, None, None, None, last_record
+            else:
+                # Rule 2: Previous day unclosed session
+                return False, {
+                    "error": f"You have an unclosed session from {last_record.date} "
+                             f"at {last_record.outlet_name}. Please contact Admin Muchemi "
+                             f"to be logged out before clocking in today."
+                }, None, None, None, None, last_record
+
+        return True, "Ready to clock in", distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+    elif action == "clockout":
+        if not last_record or last_record.check_out_time is not None:
+            return False, {"error": "You are not currently clocked in"}, None, None, None, None, last_record
+        return True, "Ready to clock out", distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+    elif action == "status":
+        if last_record and last_record.check_out_time is None:
+            return False, {"error": f"You are already clocked in at {last_record.outlet_name} "
+                                    f"since {last_record.check_in_time}"}, None, None, None, None, last_record
+        return True, {"success": "No active login, you can clock in"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+
+def outdated_11th_sep_verify_clock_action(action, outlet_id=None):
     #print("checking clock in action -757")
     data = request.json
     user_lat = data.get("latitude")
@@ -985,6 +1167,61 @@ def clock_out():
                    f"at {distance:.2f}m from {outletname}, worked {last_record.work_hours:.2f} hrs",
         "summary": summary
     }
+
+@app.route("/force-clockout/<int:user_id>", methods=["POST"])
+@login_required
+def force_clockout(user_id):
+    # Only allow admins
+    if current_user.role != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Find last active record for this user
+    last_record = Attendance.query.filter_by(user_id=user_id)\
+                                  .order_by(Attendance.id.desc())\
+                                  .first()
+
+    if not last_record or last_record.check_out_time is not None:
+        return jsonify({"error": "No active session to force clock out"}), 400
+
+    # Force clock out
+    check_out_time = datetime.now().replace(second=0, microsecond=0)
+    last_record.check_out_time = check_out_time
+    last_record.remarks = "Force clock-out by Admin Muchemi"
+
+    # Calculate hours worked if check_in_time exists
+    if last_record.check_in_time:
+        delta = check_out_time - last_record.check_in_time
+        hours_worked = round(delta.total_seconds() / 3600, 2)
+        last_record.work_hours = hours_worked
+        last_record.overtime_hours = max(0, hours_worked - 8)
+
+    db.session.commit()
+
+    return jsonify({
+        "success": f"User {user_id} force clocked out at {check_out_time.strftime('%Y-%m-%d %H:%M')}",
+        "outlet": last_record.outlet_name,
+        "check_in_time": str(last_record.check_in_time),
+        "check_out_time": str(last_record.check_out_time)
+    })
+
+def get_active_or_overflow_sessions():
+    today = date.today()
+    return Attendance.query.filter(
+        Attendance.check_out_time.is_(None)  # still active
+    ).filter(
+        Attendance.date < today              # overflow (previous day)
+        | (Attendance.date == today)         # include today's active
+    ).all()
+
+@app.route("/admin/active-sessions")
+@login_required
+def active_sessions():
+    if current_user.role != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    sessions = get_active_or_overflow_sessions()
+    return render_template("admin_sessions.html", sessions=sessions)
+
 
 @app.route("/static_clockin", methods=["POST"])
 #@app.route("/clockin", methods=["POST"])
@@ -1604,7 +1841,6 @@ def manage_users():
             user_id = request.form.get("username")
             new_name = request.form.get("new_name").upper()
             user = Users.query.get(user_id)
-           
 
             if not user:
                 return jsonify({"error": "Request declined, User not found"}), 404
@@ -1619,26 +1855,29 @@ def manage_users():
             user.role = request.form.get("roles")
             user.privileges = request.form.get("privileges")
 
-            # ✅ Handle outlet assignments via junction table
-            #all_outlet_ids
-            #rep_outlet_ids
-            #primaryChecked
-            #assignedChecked
-            selected_outlet_ids = [int(oid) for oid in request.form.getlist("all_outlet_ids")]   # all assigned outlets
-            primary_outlet_ids = [int(oid) for oid in request.form.getlist("rep_outlet_ids")]  # primary outlet(s)
+            selected_outlet_ids = [int(oid) for oid in request.form.getlist("all_outlet_ids")]
+            primary_outlet_ids = [int(oid) for oid in request.form.getlist("rep_outlet_ids")]
 
-            print("selected_outlet_ids:", selected_outlet_ids)
-            print("primary_outlet_ids:", primary_outlet_ids)
-
-            # Clear existing assignments for this user
+            # Clear existing assignments
             AssignedOutlet.query.filter_by(user_id=user.id).delete()
 
-            # Validation: if outlets are assigned but no primary outlet → reject
-            if selected_outlet_ids and not primary_outlet_ids:
-                db.session.rollback()
-                return jsonify({
-                    "error": "⚠️ Request declined. User must have at least one primary outlet if outlets are assigned."
-                }), 400
+            force_reallocate = request.form.get("force_reallocate") == "true"
+
+            # Conflict check unless forced
+            if not force_reallocate:
+                for oid in primary_outlet_ids:
+                    conflict = AssignedOutlet.query.filter(
+                        AssignedOutlet.primary_outlet_id == oid,
+                        AssignedOutlet.user_id != user.id
+                    ).first()
+                    if conflict:
+                        other_user = Users.query.get(conflict.user_id)
+                        return jsonify({
+                            "error": (
+                                f"⚠️ Request declined. Outlet ID {oid} is already primarily allocated "
+                                f"to user '{other_user.staff_name}'. Do you want to re-allocate?"
+                            )
+                        }), 400
 
             # Add new assignments
             for oid in selected_outlet_ids:
@@ -1683,6 +1922,7 @@ def manage_users():
     #user = Users.query.get(user_id)
     #print("user_selected",user_id )
     
+    #primary_outlet, outlets, unclosed_clockin_event_outlet_id= get_current_user_outlets(user_id=user_id)
 
     return render_template(
         "settings/manage_users.html",
@@ -1693,37 +1933,25 @@ def manage_users():
         privileges=PRIVILEGE_LABELS.items()
     )
 
-
 @app.route("/get_user_privileges/<int:user_id>")
 def get_user_privileges(user_id):
     user = Users.query.get(user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    assignments = AssignedOutlet.query.filter_by(user_id=user_id).all()
-    #print("assignments", assignments)
+    # Get outlets for this user
+    assigned_outlets, active_outlet_id = get_current_user_outlets(user_id=user_id)
 
-    outlet_list = []
-    mapped_outlet_ids = []
-    primary_outlet = None
-
-    for ao in assignments:
-        outlet = Outlet.query.filter(Outlet.outlet_id == ao.outlet_id).first()
-        #print("outlet-2026", outlet)
-
-        if outlet:
-            outlet_list.append({
-                "outlet_id": outlet.outlet_id,
-                "outlet_label": outlet.name
-            })
-            mapped_outlet_ids.append(outlet.outlet_id)
-
+    # 🔑 Collect all primary outlet assignments across all users
+    primary_outlet_map = {}
+    all_assignments = AssignedOutlet.query.all()
+    for ao in all_assignments:
         if ao.primary_outlet_id:
-            primary_outlet = Outlet.query.get(ao.primary_outlet_id)
+            primary_outlet_map[ao.primary_outlet_id] = ao.user_id
 
-    #print("user_id-2036", user.id)
-    #print("primary_outlet-2037", primary_outlet)
-    #print("mapped_outlet_ids-2037", mapped_outlet_ids)
+    #print("selected_user_on_privilege", user_id)
+    print("mapped_outlet_ids", assigned_outlets)
+    print("primary_outlet_map", primary_outlet_map)
 
     return jsonify({
         "user_id": user.id,
@@ -1733,12 +1961,70 @@ def get_user_privileges(user_id):
         "role_label": ROLE_LABELS.get(user.role, "Unknown"),
         "privileges": user.privileges,
         "privileges_label": PRIVILEGE_LABELS.get(user.privileges, "Unknown"),
-        "outlets": outlet_list,
-        "mapped_outlet_ids": mapped_outlet_ids,
-        "primary_outlet": {
-            "outlet_id": primary_outlet.outlet_id if primary_outlet else None,
-            "outlet_label": primary_outlet.name if primary_outlet else "No primary outlet"
-        }
+        "mapped_outlet_ids": assigned_outlets,
+        # ✅ New field: all primary outlet IDs with their owning user IDs
+        "primary_outlet_map": primary_outlet_map
+    })
+
+
+@app.route("/14th_sep_get_user_privileges/<int:user_id>")
+def th_sep_get_user_privileges(user_id):
+
+    # Build a dict of {user_id: [outlet_ids]} for pre-checking
+    #user_outlet_map = {
+    #    #u.id: [ao.outlet_id for ao in AssignedOutlet.query.filter_by(user_id=u.id).all()]
+    #    u.id: [ao.outlet_id for ao in AssignedOutlet.query.filter_by(user_id=u.id).all()]
+    #    for u in users
+    #}
+
+    #print("user_outlet_map",user_outlet_map )
+
+    user = Users.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    #assignments = AssignedOutlet.query.filter_by(user_id=user_id).all()
+    #print("assignments", assignments)
+
+    #outlet_list = []
+    #mapped_outlet_ids = []
+    #primary_outlet = None
+
+    #for ao in assignments:
+    #    outlet = Outlet.query.filter(Outlet.outlet_id == ao.outlet_id).first()
+        #print("outlet-2026", outlet)
+
+    #    if outlet:
+    #        outlet_list.append({
+    #            "outlet_id": outlet.outlet_id,
+    #            "outlet_label": outlet.name
+    #        })
+    #        mapped_outlet_ids.append(outlet.outlet_id)
+
+    #    if ao.primary_outlet_id:
+    #        primary_outlet = Outlet.query.get(ao.primary_outlet_id)
+    print("selected_user_on_plivirage",user_id)
+    assigned_outlets,active_outlet_id = get_current_user_outlets(user_id=user_id)
+
+
+    #print("user_id-2036", user.id)
+    #print("primary_outlet-2037",primary_outlet)
+    print("mapped_outlet_ids", assigned_outlets)
+
+    #"outlets": outlet_list,
+    #"primary_outlet": {
+    #        "outlet_id": primary_outlet.outlet_id if primary_outlet else None,
+    #        "outlet_label": primary_outlet.name if primary_outlet else "No primary outlet"
+    return jsonify({
+        "user_id": user.id,
+        "staff_name": user.staff_name,
+        "active": bool(user.is_active),
+        "role": user.role,
+        "role_label": ROLE_LABELS.get(user.role, "Unknown"),
+        "privileges": user.privileges,
+        "privileges_label": PRIVILEGE_LABELS.get(user.privileges, "Unknown"),
+        "mapped_outlet_ids": assigned_outlets
+        #"primary_outlet": primary_outlet
     })
 
 if __name__ == "__main__":

@@ -4,59 +4,82 @@
 {% block content %}
 
 <!-- Attendance Banner -->
-<header class="header flex-column align-items-start mb-3">
-  <div class="d-flex justify-content-between align-items-center w-100 mb-3">
-    <div class="text-center w-100">
-      <h1 class="mb-1 text-warning">Employee Attendance Register</h1>
-      <h2 class="mb-1">Welcome, {{ current_user.username }}</h2>
-      <p id="clock" class="fw-bold text-secondary"></p>
-      <p id="attached_outlet" class="fw-bold text-secondary">
-        Assigned Outlet: {{ outletname }}
-      </p>
+<header class="header d-flex justify-content-between align-items-center p-2 mb-3">
+  <div class="text-center flex-grow-1">
+    <h1 class="mb-1 text-warning fs-4">Employee Attendance Register</h1>
+    <h2 class="mb-1 fs-5">Welcome, {{ current_user.username }}</h2>
+    <p id="clock" class="fw-bold text-secondary mb-2"></p>
+
+    <!-- Outlets row -->
+    <div class="d-flex justify-content-center fw-bold text-secondary align-items-center gap-3">
+      <!-- Current outlet -->
+      <div class="text-center">
+        <label for="attached_outlet" class="form-label mb-1">Primary Assigned Outlet</label>
+        <input type="text" id="attached_outlet" 
+               class="form-control slim-field" 
+               value="{{ defaultoutletname }}" 
+               readonly>
+      </div>
+
+      <!-- All assigned outlets -->
+      <div class="text-center">
+        <label for="other_assigned_outlets" class="form-label mb-1">Other Assigned Outlets</label>
+        <select id="other_assigned_outlets" class="form-select slim-field">
+          {% for outlet in assignedoutlets %}
+            <option value="{{ outlet.id }}">{{ outlet.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
-    <div class="d-flex align-items-center gap-2">
-      <!-- Theme toggle -->
-      <button id="themeToggle" class="btn btn-sm btn-outline-dark" aria-label="Toggle theme">
-        <i class="fa-solid fa-moon"></i>
-      </button>
-      <!-- Logout -->
-      <a href="/logout" class="btn btn-logout" aria-label="Logout">
-        <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
-      </a>
-    </div>
+  </div>
+
+  <!-- Right-side controls -->
+  <div class="d-flex align-items-center gap-2">
+    <button id="themeToggle" class="btn btn-sm btn-outline-dark" aria-label="Toggle theme">
+      <i class="fa-solid fa-moon"></i>
+    </button>
+    <a href="/logout" class="btn btn-logout" aria-label="Logout">
+      <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+    </a>
   </div>
 </header>
 
-<!-- Dashboard Content -->
 <main class="grid-container">
   <!-- Row 1 -->
   <div class="row">
-    <section class="card checkin">
-      <h2>🕒 Check In</h2>
-      <button id="clockInBtn" onclick="clockInBtn()">Clock In</button>
-      <p id="checkinStatus"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...</p>
+    <section class="card checkin compact-card">
+      <h2 class="fs-5 mb-2">🕒 Check In</h2>
+      <button id="clockInBtn" onclick="clockInBtn()" class="btn btn-primary btn-sm">Clock In</button>
+      <p id="checkinStatus" class="mt-2">
+        <i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...
+      </p>
     </section>
 
-    <section class="card checkout">
-      <h2>🔄 Check Out</h2>
-      <button id="clockOutBtn" onclick="clockOut()">Clock Out</button>
-      <p id="checkoutStatus"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...</p>
+    <section class="card checkout compact-card">
+      <h2 class="fs-5 mb-2">🔄 Check Out</h2>
+      <button id="clockOutBtn" onclick="clockOut()" class="btn btn-primary btn-sm">Clock Out</button>
+      <p id="checkoutStatus" class="mt-2">
+        <i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...
+      </p>
     </section>
   </div>
 
-  <!-- Row 2 -->
-  <div class="row">
-    <section class="card summary">
-      <h2>📊 Today’s Summary</h2>
-      <p id="summaryText">Loading...</p>
-    </section>
+<!--/main-->
 
-    <section class="card notifications">
-      <h2>🔔 Notifications</h2>
-      <ul id="notificationsList"><li>No alerts</li></ul>
-    </section>
-  </div>
+ <div class="row">
+  <section class="card summary compact-card">
+    <h2 class="fs-5 mb-2">📊 Today’s Summary</h2>
+    <p id="summaryText" class="mb-1">Loading...</p>
+  </section>
+
+  <section class="card notifications compact-card">
+    <h2 class="fs-5 mb-2">🔔 Notifications</h2>
+    <ul id="notificationsList" class="mb-1"><li>No alerts</li></ul>
+  </section>
+</div>
+
 </main>
+
 
 <script>
   // Live clock
@@ -89,7 +112,7 @@
         <div><strong>Clock-out:</strong> ${data.clock_out}</div>
         <div><strong>Work hours:</strong> ${data.work_hours}</div>
         <div><strong>Clock-in Counts:</strong> ${data.clock_in_count}</div>
-        <div><strong>Outlet:</strong> ${data.outlet || "None"}</div>
+        <div><strong>Outlet:</strong> {{defaultoutletname}} </div>
       `;
       document.getElementById("summaryText").innerHTML = summaryHtml;
     } catch (err) {
@@ -99,59 +122,98 @@
   }
 
 
-function presserve_checkLoginOnLoad() {
+function getLocationAndSend(endpoint, statusElementId) {
   setBusy(true);
-  document.getElementById('checkinStatus').innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+  const statusEl = document.getElementById(statusElementId);
+  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
 
-  // Primary: GPS/Wi-Fi geolocation
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      // Success: got coordinates
-      sendLocation(pos.coords.latitude, pos.coords.longitude);
-    },
-    err => {
-      // GPS failed → fallback to IP-based location
-      document.getElementById('checkinStatus').textContent =
-        "⚠️ GPS error: " + err.message + " → trying IP location...";
+  let fallbackTriggered = false;
 
+  // Manual timeout fallback (only triggers if GPS never responds)
+  const fallbackTimer = setTimeout(() => {
+    if (!fallbackTriggered) {
+      fallbackTriggered = true;
+      statusEl.textContent = "⚠️ GPS timeout → using IP location...";
       fetch("https://ipapi.co/json/")
         .then(res => res.json())
         .then(data => {
           if (data.latitude && data.longitude) {
-            sendLocation(data.latitude, data.longitude);
-            document.getElementById('checkinStatus').textContent =
-              "Using approximate IP location";
+            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
+            statusEl.textContent = "Using approximate IP location";
           } else {
-            document.getElementById('checkinStatus').textContent =
-              "⚠️ Location unavailable";
+            statusEl.textContent = "⚠️ Location unavailable";
+            setBusy(false);
           }
         })
         .catch(() => {
-          document.getElementById('checkinStatus').textContent =
-            "⚠️ Location lookup failed";
-        })
-        .finally(() => setBusy(false));
+          statusEl.textContent = "⚠️ Location lookup failed";
+          setBusy(false);
+        });
+    }
+  }, 10000); // 10s timeout
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      if (!fallbackTriggered) {
+        fallbackTriggered = true;
+        clearTimeout(fallbackTimer);
+        sendToBackend(endpoint, statusElementId,
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy
+        );
+      }
     },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    err => {
+      if (!fallbackTriggered) {
+        fallbackTriggered = true;
+        clearTimeout(fallbackTimer);
+        statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
+        fetch("https://ipapi.co/json/")
+          .then(res => res.json())
+          .then(data => {
+            if (data.latitude && data.longitude) {
+              sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
+              statusEl.textContent = "Using approximate IP location";
+            } else {
+              statusEl.textContent = "⚠️ Location unavailable";
+              setBusy(false);
+            }
+          })
+          .catch(() => {
+            statusEl.textContent = "⚠️ Location lookup failed";
+            setBusy(false);
+          });
+      }
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
 }
 
-// Helper: send coordinates to backend
-function preserve_sendLocation(lat, lon) {
-  fetch("/check_active_login_existence", {
+function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
+  const outletId = document.getElementById("selectedOutlet")?.value || null;
+
+  console.log("Sending to backend:", endpoint, { outletId, lat, lon, accuracy });
+
+  fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ latitude: lat, longitude: lon })
+    body: JSON.stringify({
+      outlet_id: outletId,
+      latitude: lat,
+      longitude: lon,
+      accuracy: accuracy
+    })
   })
   .then(res => res.json())
   .then(data => {
-    document.getElementById('checkinStatus').textContent =
-      data.success || data.error;
+    document.getElementById(statusElementId).textContent = data.success || data.error;
+    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
+      window.location.href = "/dashboard";
+    }
   })
   .catch(err => {
-    document.getElementById('checkinStatus').textContent =
-      "⚠️ Server error: " + err.message;
+    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
   })
   .finally(() => setBusy(false));
 }
@@ -159,8 +221,103 @@ function preserve_sendLocation(lat, lon) {
 
 
 
+function suspend_getLocationAndSend(endpoint, statusElementId) {
+  setBusy(true);
+  const statusEl = document.getElementById(statusElementId);
+  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // GPS success with accuracy metadata
+      sendToBackend(endpoint, statusElementId,
+        pos.coords.latitude,
+        pos.coords.longitude,
+        pos.coords.accuracy
+      );
+    },
+    err => {
+      // GPS failed → fallback to IP
+      statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+          if (data.latitude && data.longitude) {
+            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude, null);
+            statusEl.textContent = "Using approximate IP location";
+          } else {
+            statusEl.textContent = "⚠️ Location unavailable";
+            setBusy(false);
+          }
+        })
+        .catch(() => {
+          statusEl.textContent = "⚠️ Location lookup failed";
+          setBusy(false);
+        });
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 } // short timeout
+  );
+}
+
+function suspend_sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
+  const outletId = document.getElementById("selectedOutlet").value;
+
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      outlet_id: outletid,
+      latitude: lat,
+      longitude: lon,
+      accuracy: accuracy
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById(statusElementId).textContent = data.success || data.error;
+    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
+      window.location.href = "/dashboard";
+    }
+  })
+  .catch(err => {
+    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+
+// Specific actions
+ function checkLoginOnLoad() {
+  getLocationAndSend("/check_active_login_existence", "checkinStatus");
+}
+
+ function clockInBtn() {
+  getLocationAndSend("/clockin", "checkinStatus");
+}
+
+function clockOut() {
+  getLocationAndSend("/clockout", "checkoutStatus");
+}
+
+ function alertLastcheckoutOnLoad() {
+  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  if (document.getElementById("checkinStatus")) {
+    checkLoginOnLoad();
+  }
+  if (document.getElementById("checkoutStatus")) {
+    alertLastcheckoutOnLoad();
+  }
+  if (document.getElementById("summaryText")) {
+    loadSummary();
+  }
+});
+
+
+
 // Generic helper: tries GPS, falls back to IP, then sends to backend
-function getLocationAndSend(endpoint, statusElementId) {
+function not_precise_getLocationAndSend(endpoint, statusElementId) {
   setBusy(true);
   const statusEl = document.getElementById(statusElementId);
   statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
@@ -194,9 +351,9 @@ function getLocationAndSend(endpoint, statusElementId) {
   );
 }
 
+
 // Generic backend sender
-// Generic backend sender
-function sendToBackend(endpoint, statusElementId, lat, lon) {
+function not_precise_sendToBackend(endpoint, statusElementId, lat, lon) {
   fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -221,130 +378,68 @@ function sendToBackend(endpoint, statusElementId, lat, lon) {
 }
 
 
-function checkLoginOnLoad() {
-  getLocationAndSend("/check_active_login_existence", "checkinStatus");
+function sinle_outlet_sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latitude: lat, longitude: lon, accuracy: accuracy })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById(statusElementId).textContent = data.success || data.error;
+    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
+      window.location.href = "/dashboard"; // or window.location.reload();
+    }
+  })
+  .catch(err => {
+    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
 }
 
-function clockInBtn() {
-  getLocationAndSend("/clockin", "checkinStatus");
-}
-
-function clockOut() {
-  getLocationAndSend("/clockout", "checkoutStatus");
-}
-
-
-function alertLastcheckoutOnLoad() {
-  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
-}
-
-
-  function hold_this_option_2_checkLoginOnLoad() {
-    setBusy(true);
-    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-    navigator.geolocation.getCurrentPosition(
-  pos => {
-    fetch("/check_active_login_existence", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      document.getElementById('checkinStatus').textContent = data.success || data.error;
-    })
-    .finally(() => setBusy(false));
-  },
-  err => {
-    document.getElementById('checkinStatus').textContent = "⚠️ Location error: " + err.message;
-    setBusy(false);
-  },
-  { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-);
-
-  }
-
-
-function Hold_on_this_checkLoginOnLoad() {
-    setBusy(true);
-    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-    navigator.geolocation.getCurrentPosition(pos => {
-      fetch("/check_active_login_existence", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        })
-      }).then(res => res.json()).then(data => {
-        document.getElementById('checkinStatus').textContent = data.success || data.error;
-      }).finally(() => setBusy(false));
-    });
-  }
-
-  function original_alertLastcheckoutOnLoad() {
-    setBusy(true);
-    document.getElementById('checkoutStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-    navigator.geolocation.getCurrentPosition(pos => {
-      fetch("/alert_user_last_clockout", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        })
-      }).then(res => res.json()).then(data => {
-        document.getElementById('checkoutStatus').textContent = data.success || data.error;
-      }).finally(() => setBusy(false));
-    });
-  }
-
-  function original_clockInBtn() {
-    setBusy(true);
-    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-    navigator.geolocation.getCurrentPosition(pos => {
-      fetch("/clockin", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        })
-      }).then(res => res.json()).then(data => {
-        document.getElementById('checkinStatus').textContent = data.success || data.error;
-      }).finally(() => setBusy(false));
-    });
-  }
-
-  function original_clockOut() {
-    setBusy(true);
-    document.getElementById('checkoutStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
-    navigator.geolocation.getCurrentPosition(pos => {
-      fetch("/clockout", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        })
-      }).then(res => res.json()).then(data => {
-        document.getElementById('checkoutStatus').textContent = data.success || data.error;
-      }).finally(() => setBusy(false));
-    });
-  }
-
-  // ✅ Trigger all on page load
-  document.addEventListener("DOMContentLoaded", function() {
-    loadSummary();
-    checkLoginOnLoad();
-    alertLastcheckoutOnLoad();
-  });
 </script>
 
 <style>
+/* Compact card style */
+.compact-card {
+  padding: 12px;        /* reduce padding */
+  margin-bottom: 10px;  /* less vertical spacing */
+}
+
+.compact-card h2 {
+  font-size: 1.1rem;    /* smaller heading */
+  margin-bottom: 6px;
+}
+
+.compact-card button {
+  padding: 6px 12px;    /* slimmer buttons */
+  font-size: 0.9rem;
+}
+
+
+.compact-card p,
+.compact-card ul {
+  font-size: 0.9rem;    /* smaller text */
+  margin-bottom: 4px;   /* tighter spacing */
+}
+
+/* Slim field for textbox and dropdown */
+.slim-field {
+  width: 220px;       /* narrower width */
+  text-align: center;
+  margin: 0 auto;
+  padding: 4px 6px;   /* reduce padding */
+  font-size: 0.9rem;  /* slightly smaller text */
+}
+
+/* Compress header */
+.header {
+  background: rgba(255,255,102);
+  border-bottom: 3px solid #0078D4;
+  padding: 8px 12px;   /* reduce vertical padding */
+}
+
+
 body {
   background: url("{{ url_for('static', filename='images/ybeauty_dashboard.png') }}") 
               no-repeat center center fixed;
@@ -413,6 +508,8 @@ button:disabled {
 button:hover:enabled {
   background-color: #005A9E;
 }
+
 </style>
+
 
 {% endblock %}
