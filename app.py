@@ -14,6 +14,7 @@ import math
 #from weasyprint import HTML
 #import pdfkit
 from functools import wraps
+import pytz
 
 #from flask import Flask, render_template, request, redirect, url_for, flash
 #from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
@@ -899,6 +900,11 @@ def verify_clock_action(action, outlet_id=None):
     #print("user_lon", user_lon)
     accuracy = data.get("accuracy")
 
+    # Treat stored time as UTC, then convert
+    utc = pytz.utc
+    nairobi_tz = pytz.timezone("Africa/Nairobi")
+
+
     if not user_lat or not user_lon:
         return False, {"error": "Location required"}, None, None, None, None, None
 
@@ -968,12 +974,15 @@ def verify_clock_action(action, outlet_id=None):
                                   .first()
 
     if action == "clockin":
+        utc_time = utc.localize(last_record.check_in_time)
+        local_time = utc_time.astimezone(nairobi_tz)
+        
         if last_record and last_record.check_out_time is None:
             # Rule 1: Already clocked in at ANY outlet
             if last_record.date == date.today():
                 return False, {
                     "error": f"You are already clocked in at {last_record.outlet_name} "
-                             f"since {last_record.check_in_time}. Please clock out first."
+                             f"since {local_time}. Please clock out first."
                 }, None, None, None, None, last_record
             else:
                 # Rule 2: Previous day unclosed session
