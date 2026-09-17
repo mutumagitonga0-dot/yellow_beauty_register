@@ -881,17 +881,30 @@ def dashboard():
     assignedoutlets=outlets)
     
 
+
+from datetime import timezone
 from zoneinfo import ZoneInfo
 
-def format_local_time(dt):
+
+def error_format_local_time(dt):
     """Convert UTC datetime to Nairobi local time string."""
     if dt is None:
         return "N/A"
     # Ensure dt is timezone-aware
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        local_dt = dt.astimezone(ZoneInfo("Africa/Nairobi"))
+        return local_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_local_time(dt):
+    if dt is None:
+        return "N/A"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     local_dt = dt.astimezone(ZoneInfo("Africa/Nairobi"))
     return local_dt.strftime("%Y-%m-%d %H:%M:%S")
+
 
 # --- ROUTES ---
 def verify_clock_action(action, outlet_id=None):
@@ -1482,6 +1495,42 @@ def reports():
                            )
 
 
+@app.route("/settings/attendance_summary", methods=["GET", "POST"])
+@login_required
+def attendance_summary():
+    users = retrieve_offline_users()
+    outlets = Outlet.query.all()
+    return render_template("settings/attendance_summary.html", users=users, outlets=outlets)
+
+
+
+@app.route("/generate_attendance_report", methods=["POST"])
+@login_required
+def generate_attendance_report():
+    start_date = request.form.get("start_date")
+    end_date = request.form.get("end_date")
+    user_ids = request.form.getlist("user_ids")
+    outlet_ids = request.form.getlist("outlet_ids")
+
+    # Query attendance records based on filters
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date,
+        Attendance.user_id.in_(user_ids),
+        Attendance.outlet_id.in_(outlet_ids)
+    ).all()
+
+    data = []
+    for rec in records:
+        data.append({
+            "user_id": rec.user_id,
+            "username": rec.user.username,
+            "recent_clock_in": rec.check_in_time,
+            "recent_clock_out": rec.check_out_time,
+            "outlets_clocked": [rec.outlet_name]
+        })
+    return jsonify(data)
+
 @app.route("/report_page")
 @login_required
 def report_page():
@@ -1556,7 +1605,9 @@ def report_export():
 @app.route('/settings')
 @login_required
 def settings():
-    return render_template("settings/index.html")
+   users=retrieve_offline_users()
+   outlets = Outlet.query.all()
+   return render_template("settings/index.html",users=users,outlets=outlets)
 
 
 @app.route("/settings/outlet", methods=["GET", "POST"])

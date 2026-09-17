@@ -1,14 +1,17 @@
-{% extends "layout.html" %}*/
+{% extends "layout.html" %}
 {% block content %}
 <div class="container mt-4">
   <h2 class="mb-4">Settings</h2>
 
+  <!-- Settings Section -->
   <div class="row">
     <!-- General Settings -->
     <div class="col-md-4">
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <h5 class="card-title">General</h5>
+          <h5 class="card-title">
+            <i class="bi bi-gear-fill me-2"></i> General
+          </h5>
           <p class="card-text">Manage clock-in radius, working hours, and thresholds.</p>
           <a href="{{ url_for('settings') }}" class="btn btn-outline-primary">Open</a>
         </div>
@@ -19,34 +22,107 @@
     <div class="col-md-4">
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <h5 class="card-title">Outlets</h5>
+          <h5 class="card-title">
+            <i class="bi bi-shop me-2"></i> Outlets
+          </h5>
           <p class="card-text">Create, update, delete, and search outlets with map visualization.</p>
           <a href="{{ url_for('outlet_settings') }}" class="btn btn-outline-primary">Open</a>
         </div>
       </div>
     </div>
 
-<!-- User Settings -->
+    <!-- User Settings -->
     <div class="col-md-4">
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <h5 class="card-title">Users</h5>
-          <p class="card-text">Create, update, delete, and search user </p>
+          <h5 class="card-title">
+            <i class="bi bi-people-fill me-2"></i> Users
+          </h5>
+          <p class="card-text">Create, update, delete, and search users.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reports Section -->
+  <div class="d-flex align-items-center mt-5 mb-3">
+    <i class="bi bi-bar-chart-fill text-primary me-2 fs-4"></i>
+    <h3 class="mb-0">Reports</h3>
+    <div class="flex-grow-1 border-bottom ms-3"></div>
+  </div>
+
+  <div class="row">
+    <!-- Attendance Summary -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-calendar-check me-2"></i> Attendance Summary
+          </h5>
+          <p class="card-text">Daily and monthly attendance overview with compliance indicators.</p>
+<a href="{{ url_for('attendance_summary') }}" class="btn btn-outline-primary">View</a>
+<!--button class="btn btn-outline-primary" id="openAttendancePanel">
+View
+</button-->
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Logs -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-journal-text me-2"></i> Detailed Logs
+          </h5>
+          <p class="card-text">Expand/collapse login sessions, track anomalies, and export CSV/Excel.</p>
           <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Open</a>
         </div>
       </div>
     </div>
 
-    <!-- Reports Settings -->
+    <!-- Group Reports -->
     <div class="col-md-4">
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <h5 class="card-title">Reports</h5>
-          <p class="card-text">View attendance summaries and export reports.</p>
-          <a href="{{ url_for('reports') }}" class="btn btn-outline-primary">Open</a>
+          <h5 class="card-title">
+            <i class="bi bi-diagram-3 me-2"></i> Group Reports
+          </h5>
+          <p class="card-text">Aggregate reports by department or outlet, with totals and charts.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Explore</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Center -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-file-earmark-arrow-down me-2"></i> Export Center
+          </h5>
+          <p class="card-text">Download reports in Excel, PDF, or CSV formats for offline analysis.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Download</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compliance Dashboard -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-shield-check me-2"></i> Compliance Dashboard
+          </h5>
+          <p class="card-text">Highlight anomalies such as missing clock-outs, off-site logins, or zero hours.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Check</a>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+
+
 {% endblock %}

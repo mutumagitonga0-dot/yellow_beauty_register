@@ -1,0 +1,303 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-4">Settings</h2>
+
+  <!-- Settings Section -->
+  <div class="row">
+    <!-- General Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-gear-fill me-2"></i> General
+          </h5>
+          <p class="card-text">Manage clock-in radius, working hours, and thresholds.</p>
+          <a href="{{ url_for('settings') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Outlet Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-shop me-2"></i> Outlets
+          </h5>
+          <p class="card-text">Create, update, delete, and search outlets with map visualization.</p>
+          <a href="{{ url_for('outlet_settings') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- User Settings -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-people-fill me-2"></i> Users
+          </h5>
+          <p class="card-text">Create, update, delete, and search users.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reports Section -->
+  <div class="d-flex align-items-center mt-5 mb-3">
+    <i class="bi bi-bar-chart-fill text-primary me-2 fs-4"></i>
+    <h3 class="mb-0">Reports</h3>
+    <div class="flex-grow-1 border-bottom ms-3"></div>
+  </div>
+
+  <div class="row">
+    <!-- Attendance Summary -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-calendar-check me-2"></i> Attendance Summary
+          </h5>
+          <p class="card-text">Daily and monthly attendance overview with compliance indicators.</p>
+<a href="{{ url_for('attendance_summary') }}" class="btn btn-outline-primary">View</a>
+<!--button class="btn btn-outline-primary" id="openAttendancePanel">
+  
+View
+</button-->
+
+
+
+
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Logs -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-journal-text me-2"></i> Detailed Logs
+          </h5>
+          <p class="card-text">Expand/collapse login sessions, track anomalies, and export CSV/Excel.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Open</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group Reports -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-diagram-3 me-2"></i> Group Reports
+          </h5>
+          <p class="card-text">Aggregate reports by department or outlet, with totals and charts.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Explore</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Center -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-file-earmark-arrow-down me-2"></i> Export Center
+          </h5>
+          <p class="card-text">Download reports in Excel, PDF, or CSV formats for offline analysis.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Download</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compliance Dashboard -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-shield-check me-2"></i> Compliance Dashboard
+          </h5>
+          <p class="card-text">Highlight anomalies such as missing clock-outs, off-site logins, or zero hours.</p>
+          <a href="{{ url_for('manage_users') }}" class="btn btn-outline-primary">Check</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance Summary Inline Panel -->
+<div id="attendanceSummaryPanel" class="card shadow-lg mb-4 d-none">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">
+      <i class="bi bi-bar-chart-line me-2"></i> Attendance Summary Report
+    </h5>
+    <button type="button" class="btn-close" id="closeAttendancePanel"></button>
+  </div>
+
+  <div class="card-body">
+    <!-- Filters -->
+    <form id="attendanceReportForm" class="row g-3 mb-3">
+      <!-- Date Range -->
+      <div class="col-md-4">
+        <label class="form-label">Date Range</label>
+        <input type="date" class="form-control" name="start_date">
+        <input type="date" class="form-control mt-2" name="end_date">
+      </div>
+
+      <!-- Users -->
+      <div class="col-md-4">
+        <label class="form-label">Users</label>
+        <div class="border rounded p-2 bg-light" style="max-height:120px; overflow-y:auto;">
+          {% for user in users %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="user_ids" value="{{ user.id }}" checked>
+            <label class="form-check-label">{{ user.username }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Outlets -->
+      <div class="col-md-4">
+        <label class="form-label">Outlets</label>
+        <div class="border rounded p-2 bg-light" style="max-height:120px; overflow-y:auto;">
+          {% for outlet in outlets %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="outlet_ids" value="{{ outlet.outlet_id }}" checked>
+            <label class="form-check-label">{{ outlet.name }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </form>
+
+    <!-- Report Table -->
+    <div class="table-responsive">
+      <table class="table table-striped table-hover" id="attendanceReportTable">
+        <thead class="table-dark">
+          <tr>
+            <th>User ID</th>
+            <th>Username</th>
+            <th>Recent Clock-In</th>
+            <th>Recent Clock-Out</th>
+            <th>Outlets Clocked</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-footer d-flex justify-content-between">
+    <div>
+      <button type="button" class="btn btn-outline-success" id="exportCSV">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV
+      </button>
+      <button type="button" class="btn btn-outline-info" id="exportExcel">
+        <i class="bi bi-file-earmark-excel me-1"></i> Excel
+      </button>
+      <button type="button" class="btn btn-outline-danger" id="exportPDF">
+        <i class="bi bi-file-earmark-pdf me-1"></i> PDF
+      </button>
+    </div>
+    <div>
+      <button type="button" class="btn btn-secondary" id="closeAttendancePanel">Close</button>
+      <button type="button" class="btn btn-primary" id="processReportBtn">
+        <i class="bi bi-play-circle me-1"></i> Process Report
+      </button>
+    </div>
+  </div>
+</div>
+
+
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const panel = document.getElementById("attendanceSummaryPanel");
+  const openBtn = document.getElementById("openAttendancePanel");
+  const closeBtns = document.querySelectorAll("#closeAttendancePanel");
+
+  // Show panel
+  openBtn.addEventListener("click", () => {
+    panel.classList.remove("d-none");
+    window.scrollTo({ top: panel.offsetTop, behavior: "smooth" });
+  });
+
+  // Close panel
+  closeBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      panel.classList.add("d-none");
+    });
+  });
+
+  // Existing process + export logic goes here...
+});
+</script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const processBtn = document.getElementById("processReportBtn");
+  const reportTableBody = document.querySelector("#attendanceReportTable tbody");
+
+  // Handle "Process Report" click
+  processBtn.addEventListener("click", async function() {
+    const form = document.getElementById("attendanceReportForm");
+    const formData = new FormData(form);
+
+    try {
+      const response = await fetch("/generate_attendance_report", {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+
+      // Clear table
+      reportTableBody.innerHTML = "";
+
+      // Populate table rows
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.user_id}</td>
+          <td>${row.username}</td>
+          <td>${row.recent_clock_in || "-"}</td>
+          <td>${row.recent_clock_out || "-"}</td>
+          <td>${row.outlets_clocked.join(", ")}</td>
+        `;
+        reportTableBody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error("Error generating report:", err);
+      reportTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load report data.</td></tr>`;
+    }
+  });
+
+  // Export handlers
+  document.getElementById("exportCSV").addEventListener("click", () => exportTable("csv"));
+  document.getElementById("exportExcel").addEventListener("click", () => exportTable("xlsx"));
+  document.getElementById("exportPDF").addEventListener("click", () => exportTable("pdf"));
+
+  // Simple export function (placeholder for real Excel/PDF libs later)
+  function exportTable(format) {
+    const rows = [];
+    document.querySelectorAll("#attendanceReportTable tr").forEach(tr => {
+      const cells = Array.from(tr.querySelectorAll("td, th")).map(td => td.innerText);
+      rows.push(cells.join(","));
+    });
+
+    const blob = new Blob([rows.join("\n")], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `attendance_report.${format}`;
+    link.click();
+  }
+});
+</script>
+
+{% endblock %}
