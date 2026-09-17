@@ -294,13 +294,20 @@
 </div>
 
 <!-- Direct link to Outlet User Settings -->
-<div class="text-center mt-3">
-  <form method="get" action="/settings/manage_users">
+<div class="d-flex justify-content-center align-items-center gap-2 mt-3">
+  <!-- Back button -->
+  <a href="{{ url_for('settings') }}" class="btn btn-secondary">
+    Back To Panel
+  </a>
+
+  <!-- Manage Users button -->
+  <form method="get" action="/settings/manage_users" class="m-0">
     <button type="submit" class="btn btn-info btn-sm">
       Goto Manage Users
     </button>
   </form>
 </div>
+
 
 
 <!-- Leaflet CSS & JS -->

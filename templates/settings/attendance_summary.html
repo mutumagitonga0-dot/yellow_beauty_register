@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", function() {
       </button>
     </div>
     <div>
-      <a href="{{ url_for('settings') }}" class="btn btn-secondary">Back</a>
+      <a href="{{ url_for('settings') }}" class="btn btn-secondary">Back To Panel</a>
       <button type="button" class="btn btn-primary" id="processReportBtn">
         <i class="bi bi-play-circle me-1"></i> Process Report
       </button>
@@ -190,5 +190,54 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 </script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const processBtn = document.getElementById("processReportBtn");
+  const reportTableBody = document.querySelector("#attendanceReportTable tbody");
+
+  processBtn.addEventListener("click", async function() {
+    // Disable button and show busy cursor
+    processBtn.disabled = true;
+    document.body.style.cursor = "wait";
+    processBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+
+    const form = document.getElementById("attendanceReportForm");
+    const formData = new FormData(form);
+
+    try {
+      const response = await fetch("/generate_attendance_report", {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+
+      // Clear table
+      reportTableBody.innerHTML = "";
+
+      // Populate table rows
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.user_id}</td>
+          <td>${row.username}</td>
+          <td>${row.recent_clock_in || "-"}</td>
+          <td>${row.recent_clock_out || "-"}</td>
+          <td>${row.outlets_clocked.join(", ")}</td>
+        `;
+        reportTableBody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error("Error generating report:", err);
+      reportTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load report data.</td></tr>`;
+    } finally {
+      // Reset button and cursor
+      processBtn.disabled = false;
+      document.body.style.cursor = "default";
+      processBtn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Process Report';
+    }
+  });
+});
+</script>
+
 
 {% endblock %}
