@@ -135,7 +135,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     } catch (err) {
       console.error("Error generating report:", err);
-      reportTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load report data.</td></tr>`;
+      reportTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load report data.</td></tr>`;
     }
   });
 
@@ -231,7 +231,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     } catch (err) {
       console.error("Error generating report:", err);
-      reportTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load report data.</td></tr>`;
+      reportTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load report data.</td></tr>`;
     } finally {
       // Reset button and cursor
       processBtn.disabled = false;

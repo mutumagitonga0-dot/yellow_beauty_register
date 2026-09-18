@@ -544,7 +544,7 @@ def connect_sqlalchemy_database_through_cmd():
     psql_path = r"C:\Program Files\PostgreSQL\18\bin\psql.exe"
     
     # Full connection string
-    conn_str = "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
+    conn_str = r"postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
     
     #full cmd string  for tundagreen crates
     #cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
