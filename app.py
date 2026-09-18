@@ -547,10 +547,11 @@ def connect_sqlalchemy_database_through_cmd():
     conn_str = "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
     
     #full cmd string  for tundagreen crates
-    cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
+    #cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://tgl_crates_db_user:Vk1PPiktlT6aktTgzdCCNkQZZFfLeiX5@dpg-d6uodkchg0os73f4kql0-a.oregon-postgres.render.com/tgl_crates_db"
     #full cmd string  for yellow beauty register
-    cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://yellow_beauty_db_jz6i_user:4UFtcIgJlk8tkohGjjzToM2aZUdagNWR@dpg-dag58tm1egvs73ac713g-a.oregon-postgres.render.com/yellow_beauty_db_jz6i"
-
+    cmd_str = r"C:\Program Files\PostgreSQL\18\bin\psql.exe" "postgresql://yellow_beauty_register_db_user:gWliEMbfUm8AD55JDM8TwuMitbGsq2VF@dpg-dagqc4tbedkc739qdhpg-a.oregon-postgres.render.com/yellow_beauty_register_db"
+    
+    
     # Run the command
     
 
@@ -1154,7 +1155,7 @@ def clock_in():
         date=date.today(),
         check_in_time=check_in_time,
         check_out_time=None,
-        status="Present",
+        status="Clocked In",
         clockin_distance=distance,
         geo_lat=user_lat,
         geo_lon=user_lon,
@@ -1187,8 +1188,9 @@ def clock_out():
     #outlet = Outlet.query.filter_by(user_id=current_user.id).first()
     outlet = Outlet.query.filter_by(name=outletname).first()
     if outlet:
-        last_record.outlet_id = outlet.id
+        last_record.outlet_id = outlet.outlet_id
         last_record.outlet_name = outlet.name
+        last_record.status = 'Clocked Out'
     else:
         last_record.outlet_id = None
         last_record.outlet_name = "None"
@@ -1500,8 +1502,8 @@ def reports():
 def attendance_summary():
     users = retrieve_offline_users()
     outlets = Outlet.query.all()
+    #{format_local_time(latest_record.check_in_time)}
     return render_template("settings/attendance_summary.html", users=users, outlets=outlets)
-
 
 
 @app.route("/generate_attendance_report", methods=["POST"])
@@ -1512,6 +1514,11 @@ def generate_attendance_report():
     user_ids = request.form.getlist("user_ids")
     outlet_ids = request.form.getlist("outlet_ids")
 
+    #print("start_date",start_date)
+    #print("end_date",end_date)
+    #print("user_ids",user_ids)
+    #print("outlet_ids",outlet_ids)
+    #{format_local_time(last_record.check_in_time)}
     # Query attendance records based on filters
     records = Attendance.query.filter(
         Attendance.date >= start_date,
@@ -1520,15 +1527,18 @@ def generate_attendance_report():
         Attendance.outlet_id.in_(outlet_ids)
     ).all()
 
+    #print("records",records)
     data = []
     for rec in records:
         data.append({
             "user_id": rec.user_id,
             "username": rec.user.username,
-            "recent_clock_in": rec.check_in_time,
-            "recent_clock_out": rec.check_out_time,
-            "outlets_clocked": [rec.outlet_name]
+            "recent_clock_in":  {format_local_time(rec.check_in_time)},
+            "recent_clock_out": {format_local_time(rec.check_out_time)},
+            "outlets_clocked": [rec.outlet_name],
+            "status": [rec.status]
         })
+
     return jsonify(data)
 
 @app.route("/report_page")

@@ -14,34 +14,52 @@
     <div class="d-flex justify-content-center fw-bold text-secondary align-items-center gap-3">
       <!-- Current outlet -->
       <div class="text-center">
-        <label for="attached_outlet" class="form-label mb-1">Primary Assigned Outlet</label>
-        <input type="text" id="attached_outlet" 
+        <label for="rep_outlet" class="form-label mb-1">Incharge Outlet</label>
+        <input type="text" id="rep_outlet" 
                class="form-control slim-field" 
-               value="{{ defaultoutletname }}" 
+               value="{{ defaultoutletname }}"   
+               readonly>
+      </div>
+
+
+
+<div class="d-flex justify-content-center fw-bold text-secondary align-items-center gap-3">
+      <!-- Actively assighed -->
+      <div class="text-center">
+        <label for="attached_outlet" class="form-label mb-1">Actively Assigned Outlet</label>
+        <input type="text" id="attached_outlet" 
+               class="form-control slim-field bg-primary text-white" 
+               value="{{ activelyassignedoutletname }}"   
                readonly>
       </div>
 
       <!-- All assigned outlets -->
-      <div class="text-center">
-        <label for="other_assigned_outlets" class="form-label mb-1">Other Assigned Outlets</label>
-        <select id="other_assigned_outlets" class="form-select slim-field">
-          {% for outlet in assignedoutlets %}
-            <option value="{{ outlet.id }}">{{ outlet.label }}</option>
-          {% endfor %}
-        </select>
-      </div>
+     <div class="text-center">
+  <label for="other_assigned_outlets" class="form-label mb-1">Other Assigned Outlets</label>
+  <select id="other_assigned_outlets" class="form-select slim-field" size="1">
+    {% for outlet in assignedoutlets %}
+      <option value="{{ outlet.id }}"
+              {% if active_outlet_id == outlet.outlet_id %}selected{% endif %}>
+        {{ outlet.outletname }}
+      </option>
+    {% endfor %}
+  </select>
+</div>
+
+
     </div>
   </div>
 
   <!-- Right-side controls -->
-  <div class="d-flex align-items-center gap-2">
+  <!--div class="d-flex align-items-center gap-2">
     <button id="themeToggle" class="btn btn-sm btn-outline-dark" aria-label="Toggle theme">
       <i class="fa-solid fa-moon"></i>
     </button>
     <a href="/logout" class="btn btn-logout" aria-label="Logout">
       <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
     </a>
-  </div>
+  </div-->
+
 </header>
 
 <main class="grid-container">
@@ -77,6 +95,42 @@
     <ul id="notificationsList" class="mb-1"><li>No alerts</li></ul>
   </section>
 </div>
+
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>User</th>
+      <th>Outlet</th>
+      <th>Clock-in Time</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for record in sessions %}
+    <tr>
+      <td>{{ record.user.username }}</td>
+      <td>{{ record.outlet_name }}</td>
+      <td>{{ record.check_in_time }}</td>
+      <td>
+        {% if record.date < current_date %}
+          <span class="badge bg-warning">Overflow</span>
+        {% else %}
+          <span class="badge bg-success">Active</span>
+        {% endif %}
+      </td>
+      <td>
+        <button class="btn btn-danger"
+                onclick="forceClockOut({{ record.user_id }})">
+          Force Clock Out
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
 
 </main>
 
@@ -398,6 +452,22 @@ function sinle_outlet_sendToBackend(endpoint, statusElementId, lat, lon, accurac
 }
 
 </script>
+
+<script>
+function forceClockOut(userId) {
+  fetch(`/force-clockout/${userId}`, { method: "POST" })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.success);
+        location.reload();
+      } else {
+        alert(data.error);
+      }
+    });
+}
+</script>
+
 
 <style>
 /* Compact card style */

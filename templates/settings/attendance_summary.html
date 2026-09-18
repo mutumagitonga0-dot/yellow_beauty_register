@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", function() {
           <th>Recent Clock-In</th>
           <th>Recent Clock-Out</th>
           <th>Outlets Clocked</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -128,6 +129,7 @@ document.addEventListener("DOMContentLoaded", function() {
           <td>${row.recent_clock_in || "-"}</td>
           <td>${row.recent_clock_out || "-"}</td>
           <td>${row.outlets_clocked.join(", ")}</td>
+          <td>${row.status}</td>
         `;
         reportTableBody.appendChild(tr);
       });
@@ -223,6 +225,7 @@ document.addEventListener("DOMContentLoaded", function() {
           <td>${row.recent_clock_in || "-"}</td>
           <td>${row.recent_clock_out || "-"}</td>
           <td>${row.outlets_clocked.join(", ")}</td>
+          <td>${row.status}</td>
         `;
         reportTableBody.appendChild(tr);
       });
