@@ -4,7 +4,7 @@ from flask import Flask,Response, request, render_template_string, redirect, url
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy 
-from sqlalchemy import create_engine, text,cast,Date,func,case
+from sqlalchemy import create_engine, text,cast,Date,func,case,exists, not_
 from flask_migrate import Migrate
 #import uui
 from reportlab.lib.pagesizes import A4
@@ -666,7 +666,7 @@ def login():
         if user and not user.is_active:
             return jsonify({
                 "status": "error",
-                "message": "⚠️ You are currently suspended. Please contact your admin."
+                "message": "⚠️ You are currently actively suspended. Please contact your admin."
             }), 400
 
         elif user and check_password_hash(user.password_hash, password):
@@ -838,10 +838,70 @@ def returning_id_get_current_user_outlet():
    else:
     user_outlet = "None"
    return (user_outlet)    
-    
+
+
 @app.route("/dashboard", methods=["GET", "POST"])
 @login_required
 def dashboard():
+    user_id = current_user.id
+    user = Users.query.get(user_id)
+    if not user:
+        return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
+
+    # --- Outlet summary metrics ---
+    total_outlets = Outlet.query.count()
+    clocked_in_today = Attendance.query.filter(
+        Attendance.date == date.today(),
+        Attendance.check_in_time.isnot(None)
+    ).count()
+    clocked_out_today = Attendance.query.filter(
+        Attendance.date == date.today(),
+        Attendance.check_out_time.isnot(None)
+    ).count()
+    pending_clockouts = Attendance.query.filter(
+        Attendance.date == date.today(),
+        Attendance.check_in_time.isnot(None),
+        Attendance.check_out_time.is_(None)
+    ).count()
+    unattended_today = Outlet.query.filter(
+    not_(
+        exists().where(
+            (Attendance.outlet_id == Outlet.outlet_id) &
+            (Attendance.date == date.today()) &
+            (Attendance.check_in_time.isnot(None))
+        )
+    )
+    ).count()
+    force_closure_waiting = Attendance.query.filter(
+        Attendance.check_out_time.is_(None),
+        Attendance.check_in_time < date.today()
+    ).count()
+
+
+    # --- Existing outlet assignment logic ---
+    outlets, unclosed_clockin_event_outlet_id = get_current_user_outlets(user_id=user_id)
+
+    primary_outlet = next((o for o in outlets if o.get("is_primary")), None)
+    activelyassighedoutlet = next((o for o in outlets if o.get("unclosed_clockin_event")), None)
+
+    return render_template(
+        "dashboard.html",
+        defaultoutletname=primary_outlet["outletname"] if primary_outlet else None,
+        activelyassignedoutletname=activelyassighedoutlet["outletname"] if activelyassighedoutlet else None,
+        assignedoutlets=outlets,
+        # Pass summary metrics to template
+        total_outlets=total_outlets,
+        clocked_in_today=clocked_in_today,
+        clocked_out_today=clocked_out_today,
+        pending_clockouts=pending_clockouts,
+        unattended_today=unattended_today,
+        force_closure_waiting=force_closure_waiting
+    )
+
+    
+@app.route("/no_outlets_summary_dashboard", methods=["GET", "POST"])
+@login_required
+def no_outlets_summary_dashboard():
     #summary = get_today_summary(current_user.id)
     #return jsonify(summary)   # or render_template("home.html", summary=summary)
     # Find outlet attached to current user
@@ -1389,6 +1449,7 @@ def today_summary():
 
     return jsonify(summary)
 
+
 def get_today_summary(user_id):
     today = date.today()
     records = Attendance.query.filter_by(user_id=user_id, date=today)\
@@ -1540,6 +1601,7 @@ def generate_attendance_report():
         })
 
     return jsonify(data)
+
 
 @app.route("/report_page")
 @login_required

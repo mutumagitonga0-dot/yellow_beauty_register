@@ -90,14 +90,48 @@
     <p id="summaryText" class="mb-1">Loading...</p>
   </section>
 
-  <section class="card notifications compact-card">
+  <!--section class="card notifications compact-card">
     <h2 class="fs-5 mb-2">🔔 Notifications</h2>
     <ul id="notificationsList" class="mb-1"><li>No alerts</li></ul>
-  </section>
+  </section-->
+
+{% if current_user.is_admin %}
+<section class="card compact-card">
+  <h2 class="fs-5 mb-2">🏢 Outlet Summary</h2>
+  <ul class="list-group list-group-flush">
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Total Outlets
+      <span class="badge bg-primary rounded-pill">{{ total_outlets }}</span>
+    </li>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Clocked In Today
+      <span class="badge bg-success rounded-pill">{{ clocked_in_today }}</span>
+    </li>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Clocked Out Today
+      <span class="badge bg-info rounded-pill">{{ clocked_out_today }}</span>
+    </li>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Pending Clockouts
+      <span class="badge bg-warning rounded-pill">{{ pending_clockouts }}</span>
+    </li>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Unattended Today
+      <span class="badge bg-danger rounded-pill">{{ unattended_today }}</span>
+    </li>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Force Closure Waiting
+      <span class="badge bg-dark rounded-pill">{{ force_closure_waiting }}</span>
+    </li>
+  </ul>
+</section>
+{% endif %}
+
+
 </div>
 
 
-<table class="table">
+<!--table class="table">
   <thead>
     <tr>
       <th>User</th>
@@ -129,7 +163,7 @@
     </tr>
     {% endfor %}
   </tbody>
-</table>
+</table-->
 
 
 </main>
