@@ -1533,8 +1533,8 @@ def generate_attendance_report():
         data.append({
             "user_id": rec.user_id,
             "username": rec.user.username,
-            "recent_clock_in":  {format_local_time(rec.check_in_time)},
-            "recent_clock_out": {format_local_time(rec.check_out_time)},
+            "recent_clock_in":  format_local_time(rec.check_in_time),
+            "recent_clock_out": format_local_time(rec.check_out_time),
             "outlets_clocked": [rec.outlet_name],
             "status": [rec.status]
         })

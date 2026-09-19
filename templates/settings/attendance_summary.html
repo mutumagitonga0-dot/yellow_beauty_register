@@ -158,6 +158,8 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 </script>
+
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   // Select All Users
@@ -192,7 +194,8 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 </script>
-<script>
+
+<!--script>
 document.addEventListener("DOMContentLoaded", function() {
   const processBtn = document.getElementById("processReportBtn");
   const reportTableBody = document.querySelector("#attendanceReportTable tbody");
@@ -231,7 +234,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     } catch (err) {
       console.error("Error generating report:", err);
-      reportTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load report data.</td></tr>`;
+      reportTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load report data.</td></tr>`;
     } finally {
       // Reset button and cursor
       processBtn.disabled = false;
@@ -240,7 +243,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 });
-</script>
+</script-->
 
 
 {% endblock %}
