@@ -102,6 +102,7 @@
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Total Outlets
       <span class="badge bg-primary rounded-pill">{{ total_outlets }}</span>
+      <button class="btn btn-link btn-sm" data-metric="all_outlets">View</button>
     </li>
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Clocked In Today
@@ -219,7 +220,7 @@
 </style>
 
 
-<script>
+<!--script>
 document.addEventListener("DOMContentLoaded", function() {
   const outletModal = new bootstrap.Modal(document.getElementById("outletModal"));
   const outletTableBody = document.querySelector("#outletDetailsTable tbody");
@@ -238,6 +239,40 @@ document.addEventListener("DOMContentLoaded", function() {
             <td>${item.outlet || item.name}</td>
             <td>${item.user || "-"}</td>
             <td>${item.clock_in || "-"}</td>
+            <td>
+              ${metric === "force_closure" ? 
+                `<button class="btn btn-sm btn-danger" onclick="forceClose(${item.id}, this.closest('tr'))">Force Close</button>` 
+                : ""}
+            </td>
+          </tr>`;
+      });
+      outletModal.show();
+    });
+  });
+});
+</script-->
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const outletModal = new bootstrap.Modal(document.getElementById("outletModal"));
+  const outletTableBody = document.querySelector("#outletDetailsTable tbody");
+
+  document.querySelectorAll("button[data-metric]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const metric = btn.getAttribute("data-metric");
+      const res = await fetch(`/outlets/details/${metric}`);
+      const data = await res.json();
+
+      outletTableBody.innerHTML = "";
+      data.forEach((item, i) => {
+        outletTableBody.innerHTML += `
+          <tr>
+            <td>${i+1}</td>
+            <td>${item.outlet || item.outlet_name || "-"}</td>
+            <td>${item.user || item.primary_user || "-"}</td>
+            <td>${item.clock_in || item.clock_out || "-"}</td>
+            <td>${item.current_user || "-"}</td>
+            <td>${item.latitude ? item.latitude + "," + item.longitude : "-"}</td>
             <td>
               ${metric === "force_closure" ? 
                 `<button class="btn btn-sm btn-danger" onclick="forceClose(${item.id}, this.closest('tr'))">Force Close</button>` 

@@ -1178,6 +1178,18 @@ def clock_out():
         "summary": summary
     }
 
+@app.route("/attendance/force_close/<int:attendance_id>", methods=["POST"])
+@login_required
+def force_close(attendance_id):
+    rec = Attendance.query.get(attendance_id)
+    if rec and rec.check_out_time is None:
+        rec.check_out_time = datetime.now().replace(second=0, microsecond=0)
+        rec.remarks = "Force clock-out by Admin"
+        rec.status = 'Clocked Out'
+        db.session.commit()
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error"}), 400
+
 @app.route("/outlets/details/<string:metric>")
 @login_required
 def outlets_details(metric):
@@ -1223,12 +1235,65 @@ def outlets_details(metric):
             "clock_in": r.check_in_time.strftime("%H:%M")
         } for r in records])
 
+    elif metric == "clocked_in":
+        records = Attendance.query.filter(
+            Attendance.date == date.today(),
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None)
+        ).all()
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username,
+            "outlet": r.outlet_name,
+            "clock_in": r.check_in_time.strftime("%H:%M")
+        } for r in records])
+
+    elif metric == "clocked_out":
+        records = Attendance.query.filter(
+            Attendance.date == date.today(),
+            Attendance.check_out_time.isnot(None)
+        ).all()
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username,
+            "outlet": r.outlet_name,
+            "clock_out": r.check_out_time.strftime("%H:%M")
+        } for r in records])
+
+    elif metric == "all_outlets":
+        outlets = Outlet.query.all()
+        data = []
+        #Find the primary assignment for this outlet
+        primary_assignment = AssignedOutlet.query.filter(
+            AssignedOutlet.outlet_id == Outlet.outlet_id,
+            AssignedOutlet.primary_outlet_id.isnot(None)
+        ).first()
+
+        primary_user = None
+        if primary_assignment:
+            user = Users.query.get(primary_assignment.user_id)
+            primary_user = user.username if user else None
+
+        for o in outlets:       
+            for o in outlets:
+                #primary_user = Users.query.get(o.user_id).username if o.user_id else None
+                active_attendance = Attendance.query.filter_by(outlet_id=o.id, check_out_time=None).first()
+                current_user = active_attendance.user.username if active_attendance else None
+                data.append({
+                    "outlet_id": o.id,
+                    "outlet_name": o.name,
+                    "primary_user": primary_user,
+                    "current_user": current_user,
+                    "latitude": o.latitude,
+                    "longitude": o.longitude
+                })
+            return jsonify(data)
     # Add more metrics as needed
     return jsonify([])
 
-@app.route("/outlets/unattended")
+@app.route("/hold_outlets/unattended")
 @login_required
-def outlets_unattended():
+def hold_outlets_unattended():
     outlets = Outlet.query.filter(
         ~Outlet.attendances.any(
             Attendance.date == date.today(),
@@ -1237,32 +1302,19 @@ def outlets_unattended():
     ).all()
     return jsonify([{"id": o.id, "name": o.name} for o in outlets])
 
-#@app.route("/outlets/force_closure")
-#@login_required
-#def outlets_force_closure():
-#    records = Attendance.query.filter(
-#        Attendance.check_out_time.is_(None),
-#        Attendance.check_in_time < date.today()
-#    ).all()
-#    return jsonify([{
-#        "id": r.id,
-#        "user": r.user.username,
-#        "outlet": r.outlet_name,
-#        "clock_in": r.check_in_time.strftime("%Y-%m-%d %H:%M")
-#    } for r in records])
-
-@app.route("/attendance/force_close/<int:attendance_id>", methods=["POST"])
+@app.route("/hold_outlets/force_closure")
 @login_required
-def force_close(attendance_id):
-    rec = Attendance.query.get(attendance_id)
-    if rec and rec.check_out_time is None:
-        rec.check_out_time = datetime.now().replace(second=0, microsecond=0)
-        rec.remarks = "Force clock-out by Admin"
-        db.session.commit()
-        return jsonify({"status": "success"})
-    return jsonify({"status": "error"}), 400
-
-
+def hold_outlets_force_closure():
+    records = Attendance.query.filter(
+        Attendance.check_out_time.is_(None),
+        Attendance.check_in_time < date.today()
+    ).all()
+    return jsonify([{
+        "id": r.id,
+        "user": r.user.username,
+        "outlet": r.outlet_name,
+        "clock_in": r.check_in_time.strftime("%Y-%m-%d %H:%M")
+    } for r in records])
 
 @app.route("/hold_force-clockout/<int:user_id>", methods=["POST"])
 @login_required
