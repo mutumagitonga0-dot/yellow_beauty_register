@@ -1263,19 +1263,19 @@ def outlets_details(metric):
     elif metric == "all_outlets":
         outlets = Outlet.query.all()
         data = []
-        #Find the primary assignment for this outlet
-        primary_assignment = AssignedOutlet.query.filter(
-            AssignedOutlet.outlet_id == Outlet.outlet_id,
-            AssignedOutlet.primary_outlet_id.isnot(None)
-        ).first()
-
-        primary_user = None
-        if primary_assignment:
-            user = Users.query.get(primary_assignment.user_id)
-            primary_user = user.username if user else None
-
+    
         for o in outlets:       
             for o in outlets:
+                 #Find the primary assignment for this outlet
+                primary_assignment = AssignedOutlet.query.filter(
+                    AssignedOutlet.outlet_id == o.outlet_id,
+                    AssignedOutlet.primary_outlet_id.isnot(None)
+                ).first()
+        
+                primary_user = None
+                if primary_assignment:
+                    user = Users.query.get(primary_assignment.user_id)
+                    primary_user = user.username if user else None
                 #primary_user = Users.query.get(o.user_id).username if o.user_id else None
                 active_attendance = Attendance.query.filter_by(outlet_id=o.id, check_out_time=None).first()
                 current_user = active_attendance.user.username if active_attendance else None
