@@ -106,51 +106,25 @@
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Clocked In Today
       <span class="badge bg-success rounded-pill">{{ clocked_in_today }}</span>
-      <button class="btn btn-link btn-sm" data-metric="clocked_in">View</button>
     </li>
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Clocked Out Today
       <span class="badge bg-info rounded-pill">{{ clocked_out_today }}</span>
-      <button class="btn btn-link btn-sm" data-metric="clocked_out">View</button>
     </li>
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Pending Clockouts
       <span class="badge bg-warning rounded-pill">{{ pending_clockouts }}</span>
-      <button class="btn btn-link btn-sm" data-metric="pending_clockouts">View</button>
     </li>
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Unattended Today
       <span class="badge bg-danger rounded-pill">{{ unattended_today }}</span>
-      <button class="btn btn-link btn-sm" data-metric="unattended">View</button>
     </li>
     <li class="list-group-item d-flex justify-content-between align-items-center">
       Force Closure Waiting
       <span class="badge bg-dark rounded-pill">{{ force_closure_waiting }}</span>
-      <button class="btn btn-link btn-sm" data-metric="force_closure">View</button>
     </li>
   </ul>
 </section>
-
-
-<!-- Modal for drill-down -->
-<div class="modal fade" id="outletModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-top">
-    <div class="modal-content">
-      <div class="modal-header bg-light">
-        <h5 class="modal-title">Outlet Details</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <table class="table table-striped" id="outletDetailsTable">
-          <thead><tr><th>#</th><th>Outlet</th><th>User</th><th>Clock In</th><th>Action</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-
 {% endif %}
 
 
@@ -193,74 +167,6 @@
 
 
 </main>
-
-<style>
-  .btn-link.btn-sm {
-    padding: 0;
-    font-size: 0.9rem;
-    text-decoration: underline;
-    cursor: pointer;
-  }
-</style>
-
-<style>
-  .modal {
-    z-index: 2000 !important; /* higher than navbar/toolbars */
-  }
-  .modal-backdrop {
-    z-index: 1990 !important; /* just below modal */
-  }
-</style>
-
-<style>
-  .modal-dialog-top {
-    margin: 1rem auto; /* small margin from top */
-  }
-</style>
-
-
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  const outletModal = new bootstrap.Modal(document.getElementById("outletModal"));
-  const outletTableBody = document.querySelector("#outletDetailsTable tbody");
-
-  document.querySelectorAll("button[data-metric]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const metric = btn.getAttribute("data-metric");
-      const res = await fetch(`/outlets/details/${metric}`);
-      const data = await res.json();
-
-      outletTableBody.innerHTML = "";
-      data.forEach((item, i) => {
-        outletTableBody.innerHTML += `
-          <tr>
-            <td>${i+1}</td>
-            <td>${item.outlet || item.name}</td>
-            <td>${item.user || "-"}</td>
-            <td>${item.clock_in || "-"}</td>
-            <td>
-              ${metric === "force_closure" ? 
-                `<button class="btn btn-sm btn-danger" onclick="forceClose(${item.id}, this.closest('tr'))">Force Close</button>` 
-                : ""}
-            </td>
-          </tr>`;
-      });
-      outletModal.show();
-    });
-  });
-});
-
-async function forceClose(attendanceId, rowElement) {
-  const res = await fetch(`/attendance/force_close/${attendanceId}`, { method: "POST" });
-  const data = await res.json();
-  if (data.status === "success") {
-    rowElement.querySelector("td:last-child").innerHTML = "<span class='text-success'>Closed</span>";
-  } else {
-    alert("Failed to close record");
-  }
-}
-
-</script>
 
 
 <script>

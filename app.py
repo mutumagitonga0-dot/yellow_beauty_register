@@ -1091,98 +1091,6 @@ def verify_clock_action(action, outlet_id=None):
                                     f"since {format_local_time(last_record.check_in_time)}"}, None, None, None, None, last_record
         return True, {"success": "No active login, you can clock in"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
 
-
-def outdated_11th_sep_verify_clock_action(action, outlet_id=None):
-    #print("checking clock in action -757")
-    data = request.json
-    user_lat = data.get("latitude")
-    #print("user_lat", user_lat)
-    user_lon = data.get("longitude")
-    #print("user_lon", user_lon)
-    accuracy = data.get("accuracy")
-
-    if not user_lat or not user_lon:
-        return False, {"error": "Location required"}, None, None, None, None, None
-
-    outlet = None
-    distance = None
-
-    # Step 1: If outlet_id explicitly provided, validate assignment
-    if outlet_id:
-        #outlet = Outlet.query.filter_by(id=outlet_id).first()
-        outlet = Outlet.query.filter_by(outlet_id=outlet_id).first()
-        assigned = AssignedOutlet.query.filter_by(
-            user_id=current_user.id,
-            outlet_id=outlet_id
-        ).first()
-        if not outlet or not assigned:
-            return False, {"error": "You are not assigned to this outlet"}, None, None, None, None, None
-    else:
-        # Step 2: Try primary outlet first
-       #from sqlalchemy import not_
-        primary_assignment = AssignedOutlet.query.filter(
-            AssignedOutlet.user_id == current_user.id,
-            AssignedOutlet.primary_outlet_id.isnot(None)   # ✅ proper SQLAlchemy expression
-        ).first()
-
-        #print("main outlet assighed",primary_assignment)
-        if primary_assignment:
-            #outlet = Outlet.query.filter_by(id=primary_assignment.outlet_id).first()
-            outlet = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
-            #print("main outlet_id",outlet)
-            if outlet:
-                dist = haversine(float(user_lat), float(user_lon),
-                                 float(outlet.latitude), float(outlet.longitude))
-                if dist <= float(outlet.clock_in_radius):
-                    distance = dist
-                else:
-                    outlet = None  # fail → fallback to other outlets
-
-        # Step 3: Fallback to other assigned outlets
-        if not outlet:
-            assignments = AssignedOutlet.query.filter_by(user_id=current_user.id).all()
-            for a in assignments:
-                o = Outlet.query.filter_by(outlet_id=a.outlet_id).first()
-                if not o:
-                    continue
-                dist = haversine(float(user_lat), float(user_lon),
-                                 float(o.latitude), float(o.longitude))
-                if dist <= float(o.clock_in_radius):
-                    outlet = o
-                    distance = dist
-                    break
-
-        if not outlet:
-            return False, {"error": "No valid outlet found within radius,you are"}, None, None, None, None, None
-
-
-    # Step 4: Distance validation
-    if distance is None:
-        distance = haversine(float(user_lat), float(user_lon),
-                             float(outlet.latitude), float(outlet.longitude))
-    if distance > float(outlet.clock_in_radius):
-        return False, {"error": f"You are not within {outlet.name} radius"}, None, None, None, None, None
-
-    # Step 5: Check last record for this user
-    last_record = Attendance.query.filter_by(user_id=current_user.id)\
-                                  .order_by(Attendance.id.desc())\
-                                  .first()
-
-    if action == "clockin":
-        if last_record and last_record.check_out_time is None:
-            return False, {"error": f"You are already clocked in at {last_record.outlet_name} since {last_record.check_in_time} Please Check Out First"}, None, None, None, None, last_record
-        return True, "Ready to clock in", distance, float(user_lat), float(user_lon), outlet.name, last_record
-
-    elif action == "clockout":
-        if not last_record or last_record.check_out_time is not None:
-            return False, {"error": f"You are already clocked in {outlet.name} since {last_record.check_in_time}"}, None, None, None, None, last_record
-        return True, "Ready to clock out", distance, float(user_lat), float(user_lon), outlet.name, last_record
-
-    elif action == "status":
-        if last_record and last_record.check_out_time is None:
-            return False, {"error": f"You are already clocked in {outlet.name} since {last_record.check_in_time}"}, None, None, None, None, last_record
-        return True, {"success": "No active login, you can clock in"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
-
 @app.route("/clockin", methods=["POST"])
 @login_required
 def clock_in():
@@ -1270,9 +1178,95 @@ def clock_out():
         "summary": summary
     }
 
-@app.route("/force-clockout/<int:user_id>", methods=["POST"])
+@app.route("/outlets/details/<string:metric>")
 @login_required
-def force_clockout(user_id):
+def outlets_details(metric):
+    if metric == "unattended":
+        outlets = Outlet.query.filter(
+        not_(
+            exists().where(
+                (Attendance.outlet_id == Outlet.outlet_id) &
+                (Attendance.date == date.today()) &
+                (Attendance.check_in_time.isnot(None))
+            )
+        ))
+        #outlets = Outlet.query.filter(
+        #    ~Outlet.attendances.any(
+        #        Attendance.date == date.today(),
+        #        Attendance.check_in_time.isnot(None)
+        #    )
+        #).all()
+        return jsonify([{"id": o.id, "name": o.name} for o in outlets])
+
+    elif metric == "force_closure":
+        records = Attendance.query.filter(
+            Attendance.check_out_time.is_(None),
+            Attendance.check_in_time < date.today()
+        ).all()
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username,
+            "outlet": r.outlet_name,
+            "clock_in": r.check_in_time.strftime("%Y-%m-%d %H:%M")
+        } for r in records])
+
+    elif metric == "pending_clockouts":
+        records = Attendance.query.filter(
+            Attendance.date == date.today(),
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None)
+        ).all()
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username,
+            "outlet": r.outlet_name,
+            "clock_in": r.check_in_time.strftime("%H:%M")
+        } for r in records])
+
+    # Add more metrics as needed
+    return jsonify([])
+
+@app.route("/outlets/unattended")
+@login_required
+def outlets_unattended():
+    outlets = Outlet.query.filter(
+        ~Outlet.attendances.any(
+            Attendance.date == date.today(),
+            Attendance.check_in_time.isnot(None)
+        )
+    ).all()
+    return jsonify([{"id": o.id, "name": o.name} for o in outlets])
+
+#@app.route("/outlets/force_closure")
+#@login_required
+#def outlets_force_closure():
+#    records = Attendance.query.filter(
+#        Attendance.check_out_time.is_(None),
+#        Attendance.check_in_time < date.today()
+#    ).all()
+#    return jsonify([{
+#        "id": r.id,
+#        "user": r.user.username,
+#        "outlet": r.outlet_name,
+#        "clock_in": r.check_in_time.strftime("%Y-%m-%d %H:%M")
+#    } for r in records])
+
+@app.route("/attendance/force_close/<int:attendance_id>", methods=["POST"])
+@login_required
+def force_close(attendance_id):
+    rec = Attendance.query.get(attendance_id)
+    if rec and rec.check_out_time is None:
+        rec.check_out_time = datetime.now().replace(second=0, microsecond=0)
+        rec.remarks = "Force clock-out by Admin"
+        db.session.commit()
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error"}), 400
+
+
+
+@app.route("/hold_force-clockout/<int:user_id>", methods=["POST"])
+@login_required
+def hold_force_clockout(user_id):
     # Only allow admins
     if current_user.role != "admin":
         return jsonify({"error": "Unauthorized"}), 403
