@@ -63,11 +63,30 @@
                          oninput="updateMap('createLat','createLon','createName','createMap')" required>
                 </div>
               </div>
-<!-- New button -->
-<button type="button" class="btn btn-outline-secondary btn-sm mb-3"
-        onclick="fetchCoordinates('createLat','createLon','createName','createMap')">
+
+<button type="button" class="btn btn-outline-secondary btn-sm mb-3 custom-btn"
+   onclick="fetchCoordinates('createLat','createLon','createName','createMap')">
   Use Current Location
 </button>
+
+<style>
+  .custom-btn {
+    background-color: #d93025; /* soft red */
+    color: #fff;              /* white text for contrast */
+    border-color: #f28b82;    /* match border to background */
+  }
+  //.custom-btn:hover {
+  //  background-color: #d93025; /* deeper red on hover */
+ //   border-color: #d93025;
+ // }
+</style>
+
+
+<!-- New button -->
+<!--button type="button" class="btn btn-outline-secondary btn-sm mb-3"
+      //  onclick="fetchCoordinates('createLat','createLon','createName','createMap')">
+  //Use Current Location*/
+</button-->
 
               <div class="row">
                 <div class="col-md-4 mb-3">
