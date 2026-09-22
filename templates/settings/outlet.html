@@ -191,11 +191,23 @@
 <div class="col-md-4 mb-3">
 <label>Auto Fetch Cordinates</label>
 <!-- New button -->
-<button type="button" class="btn btn-outline-secondary btn-sm mb-3"
+<button type="button" class="btn btn-outline-secondary btn-sm mb-3 update-btn"
         onclick="fetchCoordinates('updateLat','updateLon','updateName','updateMap')">
   Click to Use Current Location
 </button>
 </div>
+
+<style>
+  .update-btn {
+    background-color: #d93025; /* soft red */
+    color: #fff;              /* white text for contrast */
+    border-color: #f28b82;    /* match border to background */
+  }
+  //.custom-btn:hover {
+  //  background-color: #d93025; /* deeper red on hover */
+ //   border-color: #d93025;
+ // }
+</style>
 
               <!--div class="col-md-4 mb-3">
                 <label>Street/Landmark/Building</label>
