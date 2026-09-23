@@ -1172,9 +1172,10 @@ def clock_out():
     db.session.commit()
 
     summary = get_today_summary(current_user.id)
+    #, worked {last_record.work_hours:.2f} hrs
     return {
         "success": f"Clocked out {check_out_time.strftime('%Y-%m-%d %H:%M')} successfully "
-                   f"at {distance:.2f}m from {outletname}, worked {last_record.work_hours:.2f} hrs",
+                   f"at {distance:.2f}m from {outletname}",
         "summary": summary
     }
 
@@ -1448,7 +1449,7 @@ def today_summary():
         return jsonify({
             "clock_in": "You haven’t clocked in today.",
             "clock_out": "No clock-out record.",
-            "work_hours": "No work hours recorded.",
+            #"work_hours": "No work hours recorded.",
             "clock_in_count": 0,
             "outlet": "None"
         })
@@ -1482,7 +1483,7 @@ def today_summary():
         delta = datetime.now() - last_record.check_in_time
         total_hours += delta.total_seconds() / 3600
 
-    summary["work_hours"] = f"You have worked {total_hours:.2f} hours today."
+    #summary["work_hours"] = f"You have worked {total_hours:.2f} hours today."
 
     # Number of clock-ins
     summary["clock_in_count"] = f"You have clocked-in {len(records)} times today."
@@ -1527,7 +1528,7 @@ def get_today_summary(user_id):
     if last_record.check_in_time and not last_record.check_out_time:
         delta = datetime.now() - last_record.check_in_time
         total_hours += delta.total_seconds() / 3600
-    summary["work_hours"] = f"You have worked {total_hours:.2f} hours today."
+    #summary["work_hours"] = f"You have worked {total_hours:.2f} hours today."
 
     # Number of clock-ins
     summary["clock_in_count"] = len(records)
