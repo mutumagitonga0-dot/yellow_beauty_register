@@ -1739,7 +1739,10 @@ def outlet_settings():
             Outlet.outlet_id.ilike(f"%{search_query}%")
         ).all()
     else:
-        outlets = Outlet.query.all()
+        # or equivalently, ascending is default so this also works:
+        #outlets = Outlet.query.all()
+        outlets = Outlet.query.order_by(func.lower(Outlet.name)).all()
+        #outlets = Outlet.query.order_by(Outlet.name.desc()).all()
 
     selected_outlet = None
 
@@ -1918,7 +1921,10 @@ def retrieve_offline_users():
   #usernames = [u.f_namstafe for u in users]  # extract usernames
   #print("DEBUG: usernames =", usernames)
   #return usernames
-  return Users.query.all()
+  #return Users.query.all()
+  #return Users.query.order_by(Users.staff_name).all()
+  return Users.query.order_by(func.lower(Users.staff_name)).all()
+
 
 def add_purchase(warehouse_id, crates, description=""):
     txn = WarehouseTransaction(
