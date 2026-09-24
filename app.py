@@ -2111,7 +2111,8 @@ def manage_users():
         return jsonify({"error": "Unknown action"}), 400
 
     # GET request → render template
-    users = Users.query.all()
+    users = Users.query.order_by(func.lower(Users.staff_name)).all()
+    
 
     # Build a dict of {user_id: [outlet_ids]} for pre-checking
     #user_outlet_map = {
