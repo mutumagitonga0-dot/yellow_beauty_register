@@ -136,6 +136,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 </style>
 
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const table = document.getElementById("attendanceReportTable");
@@ -282,6 +283,87 @@ document.addEventListener("DOMContentLoaded", function() {
 
 </script>
 
+<!--script>
+document.addEventListener("DOMContentLoaded", function() {
+  const table = document.getElementById("attendanceReportTable");
+  const headers = table.querySelectorAll("th");
+  const tbody = table.querySelector("tbody");
+  let sortDirection = {};
+  let originalRows = Array.from(tbody.querySelectorAll("tr")); // store original order
+
+  function sortTable(colIndex, forceDirection = null) {
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    // Toggle or force sort direction
+    if (forceDirection !== null) {
+      sortDirection[colIndex] = forceDirection;
+    } else {
+      sortDirection[colIndex] = !sortDirection[colIndex];
+    }
+
+    // Clear previous active states
+    headers.forEach(h => h.classList.remove("active-asc", "active-desc"));
+
+    // Apply new active state
+    headers[colIndex].classList.add(sortDirection[colIndex] ? "active-asc" : "active-desc");
+
+    rows.sort((a, b) => {
+      const aText = a.children[colIndex].innerText.trim();
+      const bText = b.children[colIndex].innerText.trim();
+
+      // ✅ Numeric sort
+      const aNum = parseFloat(aText);
+      const bNum = parseFloat(bText);
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return sortDirection[colIndex] ? aNum - bNum : bNum - aNum;
+      }
+
+      // ✅ Time sort (HH:MM)
+      const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
+      if (timeRegex.test(aText) && timeRegex.test(bText)) {
+        const [aH, aM] = aText.split(":").map(Number);
+        const [bH, bM] = bText.split(":").map(Number);
+        const aMinutes = aH * 60 + aM;
+        const bMinutes = bH * 60 + bM;
+        return sortDirection[colIndex] ? aMinutes - bMinutes : bMinutes - aMinutes;
+      }
+
+      // ✅ DateTime sort (YYYY-MM-DD HH:MM)
+      const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+      if (dateTimeRegex.test(aText) && dateTimeRegex.test(bText)) {
+        const aDate = new Date(aText.replace(" ", "T"));
+        const bDate = new Date(bText.replace(" ", "T"));
+        return sortDirection[colIndex] ? aDate - bDate : bDate - aDate;
+      }
+
+      // ✅ Fallback string sort
+      return sortDirection[colIndex] 
+        ? aText.localeCompare(bText) 
+        : bText.localeCompare(aText);
+    });
+
+    // Re-append sorted rows
+    tbody.innerHTML = "";
+    rows.forEach(row => tbody.appendChild(row));
+  }
+
+  // Attach click handlers
+  headers.forEach((header, index) => {
+    header.addEventListener("click", () => sortTable(index));
+  });
+
+  // ✅ Default sort on page load → Recent Clock-In (colIndex = 2), descending
+  sortTable(2, false);
+
+  // ✅ Reset Sort button
+  document.getElementById("resetSortBtn").addEventListener("click", () => {
+    headers.forEach(h => h.classList.remove("active-asc", "active-desc"));
+    tbody.innerHTML = "";
+    originalRows.forEach(row => tbody.appendChild(row));
+  });
+});
+</script-->
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const processBtn = document.getElementById("processReportBtn");
@@ -373,88 +455,6 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 
-
-
-<!--script>
-document.addEventListener("DOMContentLoaded", function() {
-  const table = document.getElementById("attendanceReportTable");
-  const headers = table.querySelectorAll("th");
-  const tbody = table.querySelector("tbody");
-  let sortDirection = {};
-  let originalRows = Array.from(tbody.querySelectorAll("tr")); // store original order
-
-  function sortTable(colIndex, forceDirection = null) {
-    const rows = Array.from(tbody.querySelectorAll("tr"));
-
-    // Toggle or force sort direction
-    if (forceDirection !== null) {
-      sortDirection[colIndex] = forceDirection;
-    } else {
-      sortDirection[colIndex] = !sortDirection[colIndex];
-    }
-
-    // Clear previous active states
-    headers.forEach(h => h.classList.remove("active-asc", "active-desc"));
-
-    // Apply new active state
-    headers[colIndex].classList.add(sortDirection[colIndex] ? "active-asc" : "active-desc");
-
-    rows.sort((a, b) => {
-      const aText = a.children[colIndex].innerText.trim();
-      const bText = b.children[colIndex].innerText.trim();
-
-      // ✅ Numeric sort
-      const aNum = parseFloat(aText);
-      const bNum = parseFloat(bText);
-      if (!isNaN(aNum) && !isNaN(bNum)) {
-        return sortDirection[colIndex] ? aNum - bNum : bNum - aNum;
-      }
-
-      // ✅ Time sort (HH:MM)
-      const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
-      if (timeRegex.test(aText) && timeRegex.test(bText)) {
-        const [aH, aM] = aText.split(":").map(Number);
-        const [bH, bM] = bText.split(":").map(Number);
-        const aMinutes = aH * 60 + aM;
-        const bMinutes = bH * 60 + bM;
-        return sortDirection[colIndex] ? aMinutes - bMinutes : bMinutes - aMinutes;
-      }
-
-      // ✅ DateTime sort (YYYY-MM-DD HH:MM)
-      const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-      if (dateTimeRegex.test(aText) && dateTimeRegex.test(bText)) {
-        const aDate = new Date(aText.replace(" ", "T"));
-        const bDate = new Date(bText.replace(" ", "T"));
-        return sortDirection[colIndex] ? aDate - bDate : bDate - aDate;
-      }
-
-      // ✅ Fallback string sort
-      return sortDirection[colIndex] 
-        ? aText.localeCompare(bText) 
-        : bText.localeCompare(aText);
-    });
-
-    // Re-append sorted rows
-    tbody.innerHTML = "";
-    rows.forEach(row => tbody.appendChild(row));
-  }
-
-  // Attach click handlers
-  headers.forEach((header, index) => {
-    header.addEventListener("click", () => sortTable(index));
-  });
-
-  // ✅ Default sort on page load → Recent Clock-In (colIndex = 2), descending
-  sortTable(2, false);
-
-  // ✅ Reset Sort button
-  document.getElementById("resetSortBtn").addEventListener("click", () => {
-    headers.forEach(h => h.classList.remove("active-asc", "active-desc"));
-    tbody.innerHTML = "";
-    originalRows.forEach(row => tbody.appendChild(row));
-  });
-});
-</script-->
 
 
 <!--script>
