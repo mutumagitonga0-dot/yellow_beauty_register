@@ -898,6 +898,34 @@ def dashboard():
         force_closure_waiting=force_closure_waiting
     )
 
+@app.route("/outlet_clock_summary")
+def outlet_clock_summary():
+    outlets = Outlet.query.order_by(func.lower(Outlet.name)).all()
+    today = date.today()
+
+    result = []
+    for outlet in outlets:
+        latest_attendance = (
+            Attendance.query
+            .filter(
+                Attendance.outlet_id == outlet.outlet_id,
+                Attendance.date == today,
+                Attendance.check_in_time.isnot(None)
+            )
+            .order_by(Attendance.check_in_time.desc())
+            .first()
+        )
+
+        result.append({
+            "id": outlet.id,
+            "outlet_id": outlet.outlet_id,
+            "name": outlet.name,
+            "clocked_in": latest_attendance is not None,
+            "last_clock_in": format_local_time(latest_attendance.check_in_time) if latest_attendance else None,
+            "checked_out": latest_attendance.check_out_time is not None if latest_attendance else False
+        })
+
+    return jsonify(result)
     
 @app.route("/no_outlets_summary_dashboard", methods=["GET", "POST"])
 @login_required

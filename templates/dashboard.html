@@ -84,6 +84,7 @@
 
 <!--/main-->
 
+{% if current_user.role == 1 %}
  <div class="row">
   <section class="card summary compact-card">
     <h2 class="fs-5 mb-2">📊 Today’s Summary</h2>
@@ -95,7 +96,7 @@
     <ul id="notificationsList" class="mb-1"><li>No alerts</li></ul>
   </section-->
 
-{% if current_user.role == 1 %}
+
 <section class="card compact-card">
   <h2 class="fs-5 mb-2">🏢 Outlet Summary</h2>
   <ul class="list-group list-group-flush">

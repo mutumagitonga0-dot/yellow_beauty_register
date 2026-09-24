@@ -86,6 +86,9 @@ document.addEventListener("DOMContentLoaded", function() {
       </button>
     </div>
     <div>
+    <button type="button" class="btn btn-primary" id="processoutletssummary">
+        <i class="bi bi-play-circle me-1"></i> View Outlets
+      </button>
       
       <button type="button" class="btn btn-primary" id="processReportBtn">
         <i class="bi bi-play-circle me-1"></i> Process Report
@@ -113,7 +116,181 @@ document.addEventListener("DOMContentLoaded", function() {
 </div>
 
 
+<!-- Outlets Summary Modal -->
+<div class="modal fade" id="outletsSummaryModal" tabindex="-1" aria-labelledby="outletsSummaryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="outletsSummaryModalLabel">
+          <i class="bi bi-shop me-1"></i> Outlets Clock-In Summary
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
 
+        <!-- Controls row -->
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div class="btn-group" role="group" aria-label="Filter outlets">
+            <input type="radio" class="btn-check" name="outletFilter" id="filterNotClocked" checked>
+            <label class="btn btn-outline-danger btn-sm" for="filterNotClocked">Not Clocked In</label>
+
+            <input type="radio" class="btn-check" name="outletFilter" id="filterClocked">
+            <label class="btn btn-outline-success btn-sm" for="filterClocked">Clocked In</label>
+
+            <input type="radio" class="btn-check" name="outletFilter" id="filterAll">
+            <label class="btn btn-outline-secondary btn-sm" for="filterAll">All Outlets</label>
+          </div>
+
+          <input type="text" class="form-control form-control-sm w-auto" id="outletSearchInput" placeholder="Search outlet...">
+        </div>
+
+        <!-- Status summary -->
+        <div class="mb-2 small text-muted" id="outletsSummaryMeta">
+          <!-- e.g. "12 of 20 outlets not clocked in · as of 10:42 AM" -->
+        </div>
+
+        <!-- Loading state -->
+        <div id="outletsSummaryLoading" class="text-center py-4 d-none">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 mb-0 text-muted">Loading outlet data...</p>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle d-none" id="outletsSummaryTable">
+            <thead class="table-dark">
+              <tr>
+                <th>Outlet</th>
+                <th>Outlet ID</th>
+                <th>Status</th>
+                <th>Last Clock-In</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Empty state -->
+        <div id="outletsSummaryEmpty" class="text-center text-muted py-4 d-none">
+          <i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>
+          No outlets match this filter.
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshOutletsSummary">
+          <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const summaryBtn = document.getElementById("processoutletssummary");
+  const summaryModalEl = document.getElementById("outletsSummaryModal");
+  const summaryModal = new bootstrap.Modal(summaryModalEl);
+
+  const loadingEl = document.getElementById("outletsSummaryLoading");
+  const tableEl = document.getElementById("outletsSummaryTable");
+  const tbody = tableEl.querySelector("tbody");
+  const emptyEl = document.getElementById("outletsSummaryEmpty");
+  const metaEl = document.getElementById("outletsSummaryMeta");
+  const searchInput = document.getElementById("outletSearchInput");
+
+  let allOutletsData = []; // cached from last fetch
+
+  summaryBtn.addEventListener("click", () => {
+    summaryModal.show();
+    loadOutletsSummary();
+  });
+
+  document.getElementById("refreshOutletsSummary").addEventListener("click", loadOutletsSummary);
+
+  document.querySelectorAll('input[name="outletFilter"]').forEach(radio => {
+    radio.addEventListener("change", renderTable);
+  });
+
+  searchInput.addEventListener("input", renderTable);
+
+  async function loadOutletsSummary() {
+    loadingEl.classList.remove("d-none");
+    tableEl.classList.add("d-none");
+    emptyEl.classList.add("d-none");
+
+    try {
+      const response = await fetch("/outlet_clock_summary");
+      if (!response.ok) throw new Error(`Server responded ${response.status}`);
+      allOutletsData = await response.json();
+      renderTable();
+    } catch (err) {
+      console.error("Error fetching outlet summary:", err);
+      loadingEl.classList.add("d-none");
+      emptyEl.classList.remove("d-none");
+      emptyEl.innerHTML = `<i class="bi bi-exclamation-triangle fs-3 d-block mb-2 text-danger"></i>
+        Failed to load outlet data. <button class="btn btn-link btn-sm" id="retryLoad">Retry</button>`;
+      document.getElementById("retryLoad")?.addEventListener("click", loadOutletsSummary);
+    }
+  }
+
+  function renderTable() {
+    loadingEl.classList.add("d-none");
+
+    const filter = document.querySelector('input[name="outletFilter"]:checked').id;
+    const searchTerm = searchInput.value.trim().toLowerCase();
+
+    let filtered = allOutletsData.filter(o => {
+      if (filter === "filterNotClocked" && o.clocked_in) return false;
+      if (filter === "filterClocked" && !o.clocked_in) return false;
+      return true;
+    });
+
+    if (searchTerm) {
+      filtered = filtered.filter(o => o.name.toLowerCase().includes(searchTerm));
+    }
+
+    // Already sorted A–Z by backend, but keep it safe on the frontend too
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+    const notClockedCount = allOutletsData.filter(o => !o.clocked_in).length;
+    metaEl.textContent = `${notClockedCount} of ${allOutletsData.length} outlets not clocked in · as of ${new Date().toLocaleTimeString()}`;
+
+    if (filtered.length === 0) {
+      tableEl.classList.add("d-none");
+      emptyEl.classList.remove("d-none");
+      emptyEl.innerHTML = `<i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i> No outlets match this filter.`;
+      return;
+    }
+
+    emptyEl.classList.add("d-none");
+    tableEl.classList.remove("d-none");
+
+    tbody.innerHTML = "";
+    filtered.forEach(o => {
+      const tr = document.createElement("tr");
+      const statusBadge = o.clocked_in
+        ? `<span class="badge bg-success">Clocked In</span>`
+        : `<span class="badge bg-danger">Not Clocked In</span>`;
+      tr.innerHTML = `
+        <td>${escapeHtml(o.name)}</td>
+        <td>${escapeHtml(o.outlet_id)}</td>
+        <td>${statusBadge}</td>
+        <td>${o.last_clock_in ? escapeHtml(o.last_clock_in) : "-"}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Prevent injected outlet names/ids from breaking HTML if they ever contain special chars
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+});
+</script>
 
 
 <style>
