@@ -1725,7 +1725,8 @@ def report_export():
 @login_required
 def settings():
    users=retrieve_offline_users()
-   outlets = Outlet.query.all()
+   #outlets = Outlet.query.all()
+   outlets = Outlet.query.order_by(func.lower(Outlet.name)).all()
    return render_template("settings/index.html",users=users,outlets=outlets)
 
 
