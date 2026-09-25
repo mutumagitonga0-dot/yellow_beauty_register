@@ -1226,7 +1226,7 @@ def outlets_details(metric):
         outlets = Outlet.query.filter(
         not_(
             exists().where(
-                (Attendance.outlet_id == outlets.outlet_id) &
+                #(Attendance.outlet_id == outlets.outlet_id) &
                 (Attendance.date == date.today()) &
                 (Attendance.check_in_time.isnot(None))
             )
@@ -1237,7 +1237,7 @@ def outlets_details(metric):
         #        Attendance.check_in_time.isnot(None)
         #    )
         #).all()
-        return jsonify([{"id": o.id, "name": o.name} for o in outlets])
+        return jsonify([{"id": o.outlet_id, "name": o.name} for o in outlets])
 
     elif metric == "force_closure":
         records = Attendance.query.filter(
@@ -1248,7 +1248,7 @@ def outlets_details(metric):
             "id": r.id,
             "user": r.user.username,
             "outlet": r.outlet_name,
-            "clock_in": r.check_in_time.strftime("%Y-%m-%d %H:%M")
+            "clock_in": format_local_time(r.check_in_time)
         } for r in records])
 
     elif metric == "pending_clockouts":
@@ -1261,7 +1261,7 @@ def outlets_details(metric):
             "id": r.id,
             "user": r.user.username,
             "outlet": r.outlet_name,
-            "clock_in": r.check_in_time.strftime("%H:%M")
+            "clock_in": format_local_time(r.check_in_time)
         } for r in records])
 
     elif metric == "clocked_in":
@@ -1274,7 +1274,7 @@ def outlets_details(metric):
             "id": r.id,
             "user": r.user.username,
             "outlet": r.outlet_name,
-            "clock_in": r.check_in_time.strftime("%H:%M")
+            "clock_in": format_local_time(r.check_in_time)
         } for r in records])
 
     elif metric == "clocked_out":
@@ -1286,7 +1286,7 @@ def outlets_details(metric):
             "id": r.id,
             "user": r.user.username,
             "outlet": r.outlet_name,
-            "clock_out": r.check_out_time.strftime("%H:%M")
+            "clock_out": format_local_time(r.check_out_time)
         } for r in records])
 
     elif metric == "all_outlets":
