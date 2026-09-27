@@ -1457,9 +1457,9 @@ def alert_user_last_clockout():
                                     .first()
 
     if last_clockout and latest_record and latest_record.id > last_clockout.id and latest_record.check_out_time is None:
-        return jsonify({"success": f"You have a pending clock-out since {format_local_time(latest_record.check_in_time)}"})
+        return jsonify({"success": f"You have a pending clock-out since {format_local_time(latest_record.check_in_time)} at {latest_record.outlet_name}"})
     elif latest_record and latest_record.check_out_time is None:
-        return jsonify({"error": f"You have a pending clock-out since {format_local_time(latest_record.check_in_time)}"})
+        return jsonify({"error": f"You have a pending clock-out since {format_local_time(latest_record.check_in_time)} at {latest_record.check_in_time}"})
     else:
         return jsonify({"error": "No pending clock-out found"})
 
