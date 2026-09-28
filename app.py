@@ -1358,8 +1358,8 @@ def outlets_details(metric):
             not_(
                 exists().where(
                     (Attendance.outlet_id == Outlet.outlet_id) &
-                    (Attendance.date == today) &
-                    (Attendance.check_in_time.isnot(None))
+                    (Attendance.date == today) 
+                   # & (Attendance.check_in_time.isnot(None))
                 )
             )
         ).order_by(func.lower(Outlet.name)).all()
