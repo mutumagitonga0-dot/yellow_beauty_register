@@ -848,35 +848,62 @@ def dashboard():
     if not user:
         return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
 
+    
     # --- Outlet summary metrics ---
+    today = date.today()
+
     total_outlets = Outlet.query.count()
-    clocked_in_today = Attendance.query.filter(
-        Attendance.date == date.today(),
-        Attendance.check_in_time.isnot(None)
-    ).count()
-    clocked_out_today = Attendance.query.filter(
-        Attendance.date == date.today(),
-        Attendance.check_out_time.isnot(None)
-    ).count()
-    pending_clockouts = Attendance.query.filter(
-        Attendance.date == date.today(),
-        Attendance.check_in_time.isnot(None),
-        Attendance.check_out_time.is_(None)
-    ).count()
-    unattended_today = Outlet.query.filter(
-    not_(
-        exists().where(
-            (Attendance.outlet_id == Outlet.outlet_id) &
-            (Attendance.date == date.today()) &
-            (Attendance.check_in_time.isnot(None))
+
+    clocked_in_today = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None)
         )
+        .distinct()
+        .count()
     )
-    ).count()
-    force_closure_waiting = Attendance.query.filter(
-        Attendance.check_out_time.is_(None),
-        Attendance.check_in_time < date.today()
+
+    clocked_out_today = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_out_time.isnot(None)
+        )
+        .distinct()
+        .count()
+    )
+
+    pending_clockouts = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None)
+        )
+        .distinct()
+        .count()
+    )
+
+    unattended_today = Outlet.query.filter(
+        not_(
+            exists().where(
+                (Attendance.outlet_id == Outlet.outlet_id) &
+                (Attendance.date == today) &
+                (Attendance.check_in_time.isnot(None))
+            )
+        )
     ).count()
 
+    force_closure_waiting = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.check_out_time.is_(None),
+            Attendance.check_in_time < today
+        )
+        .distinct()
+        .count()
+    )
 
     # --- Existing outlet assignment logic ---
     outlets, unclosed_clockin_event_outlet_id = get_current_user_outlets(user_id=user_id)
