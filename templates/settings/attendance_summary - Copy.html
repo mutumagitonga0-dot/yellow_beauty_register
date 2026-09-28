@@ -187,7 +187,7 @@ document.addEventListener("DOMContentLoaded", function() {
   </div>
 </div>
 
-<!--script>
+<script>
 document.addEventListener("DOMContentLoaded", function() {
   const summaryBtn = document.getElementById("processoutletssummary");
   const summaryModalEl = document.getElementById("outletsSummaryModal");
@@ -287,114 +287,6 @@ document.addEventListener("DOMContentLoaded", function() {
   function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str;
-    return div.innerHTML;
-  }
-});
-</script-->
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-  const summaryBtn = document.getElementById("processoutletssummary");
-  const summaryModalEl = document.getElementById("outletsSummaryModal");
-
-  // Escape any ancestor stacking context (fixes the dark, unclickable overlay)
-  document.body.appendChild(summaryModalEl);
-  const summaryModal = bootstrap.Modal.getOrCreateInstance(summaryModalEl);
-
-  const loadingEl = document.getElementById("outletsSummaryLoading");
-  const tableEl = document.getElementById("outletsSummaryTable");
-  const tbody = tableEl.querySelector("tbody");
-  const emptyEl = document.getElementById("outletsSummaryEmpty");
-  const metaEl = document.getElementById("outletsSummaryMeta");
-  const searchInput = document.getElementById("outletSearchInput");
-
-  let allOutletsData = []; // cached from last fetch
-
-  summaryBtn.addEventListener("click", () => {
-    summaryModal.show();
-    loadOutletsSummary();
-  });
-
-  document.getElementById("refreshOutletsSummary").addEventListener("click", loadOutletsSummary);
-
-  document.querySelectorAll('input[name="outletFilter"]').forEach(radio => {
-    radio.addEventListener("change", renderTable);
-  });
-
-  searchInput.addEventListener("input", renderTable);
-
-  // Event delegation for Retry, so listeners aren't re-attached on every failure
-  emptyEl.addEventListener("click", (e) => {
-    if (e.target.closest("#retryLoad")) loadOutletsSummary();
-  });
-
-  async function loadOutletsSummary() {
-    loadingEl.classList.remove("d-none");
-    tableEl.classList.add("d-none");
-    emptyEl.classList.add("d-none");
-
-    try {
-      const response = await fetch("/outlet_clock_summary");
-      if (!response.ok) throw new Error(`Server responded ${response.status}`);
-      allOutletsData = await response.json();
-      renderTable();
-    } catch (err) {
-      console.error("Error fetching outlet summary:", err);
-      loadingEl.classList.add("d-none");
-      tableEl.classList.add("d-none");
-      emptyEl.classList.remove("d-none");
-      emptyEl.innerHTML = `<i class="bi bi-exclamation-triangle fs-3 d-block mb-2 text-danger"></i>
-        Failed to load outlet data. <button type="button" class="btn btn-link btn-sm" id="retryLoad">Retry</button>`;
-    }
-  }
-
-  function renderTable() {
-    loadingEl.classList.add("d-none");
-
-    const filter = document.querySelector('input[name="outletFilter"]:checked').id;
-    const searchTerm = searchInput.value.trim().toLowerCase();
-
-    let filtered = allOutletsData.filter(o => {
-      if (filter === "filterNotClocked" && o.clocked_in) return false;
-      if (filter === "filterClocked" && !o.clocked_in) return false;
-      return true;
-    });
-
-    if (searchTerm) {
-      filtered = filtered.filter(o => (o.name || "").toLowerCase().includes(searchTerm));
-    }
-
-    filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-
-    const notClockedCount = allOutletsData.filter(o => !o.clocked_in).length;
-    metaEl.textContent =
-      `${notClockedCount} of ${allOutletsData.length} outlets not clocked in · as of ${new Date().toLocaleTimeString()}`;
-
-    if (filtered.length === 0) {
-      tableEl.classList.add("d-none");
-      emptyEl.classList.remove("d-none");
-      emptyEl.innerHTML = `<i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i> No outlets match this filter.`;
-      return;
-    }
-
-    emptyEl.classList.add("d-none");
-    tableEl.classList.remove("d-none");
-
-    // Single DOM write instead of one per row
-    tbody.innerHTML = filtered.map(o => `
-      <tr>
-        <td>${escapeHtml(o.name)}</td>
-        <td>${escapeHtml(o.outlet_id)}</td>
-        <td>${o.clocked_in
-          ? '<span class="badge bg-success">Clocked In</span>'
-          : '<span class="badge bg-danger">Not Clocked In</span>'}</td>
-        <td>${o.last_clock_in ? escapeHtml(o.last_clock_in) : "-"}</td>
-      </tr>`).join("");
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str ?? "";
     return div.innerHTML;
   }
 });

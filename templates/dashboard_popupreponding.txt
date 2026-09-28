@@ -144,7 +144,11 @@
       </div>
       <div class="modal-body">
         <table class="table table-striped" id="outletDetailsTable">
-          <thead><tr><th>#</th><th>Outlet</th><th>User</th><th>Clock In</th><th>Action</th></tr></thead>
+<thead><tr>
+  <th>#</th><th>Outlet</th><th>User</th><th>Time</th>
+  <th>Current User</th><th>Location</th><th>Action</th>
+</tr></thead>
+          <!--thead><tr><th>#</th><th>Outlet</th><th>User</th><th>Clock In</th><th>Action</th></tr></thead-->
           <tbody></tbody>
         </table>
       </div>
@@ -253,14 +257,9 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script-->
 
-<script>
+<!--script>
 document.addEventListener("DOMContentLoaded", function() {
-
-const modalEl = document.getElementById("outletModal");
-document.body.appendChild(modalEl);   // escape any ancestor stacking context
-const outletModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-
-  //const outletModal = new bootstrap.Modal(document.getElementById("outletModal"));
+  const outletModal = new bootstrap.Modal(document.getElementById("outletModal"));
   const outletTableBody = document.querySelector("#outletDetailsTable tbody");
 
   document.querySelectorAll("button[data-metric]").forEach(btn => {
@@ -301,7 +300,94 @@ async function forceClose(attendanceId, rowElement) {
   }
 }
 
+</script-->
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+const modalEl = document.getElementById("outletModal");
+document.body.appendChild(modalEl);   // escape any ancestor stacking context
+const outletModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  //const outletModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("outletModal"));
+  const tbody = document.querySelector("#outletDetailsTable tbody");
+  const COLS = 7;
+
+  const esc = (v) => {
+    const d = document.createElement("div");
+    d.textContent = v ?? "";
+    return d.innerHTML;
+  };
+
+  const messageRow = (html, cls = "text-muted") =>
+    `<tr><td colspan="${COLS}" class="text-center py-4 ${cls}">${html}</td></tr>`;
+
+  document.querySelectorAll("button[data-metric]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const metric = btn.dataset.metric;
+
+      // Open immediately, then load
+      tbody.innerHTML = messageRow(
+        '<span class="spinner-border spinner-border-sm me-2"></span>Loading...'
+      );
+      outletModal.show();
+
+      try {
+        const res = await fetch(`/outlets/details/${encodeURIComponent(metric)}`);
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        const data = await res.json();
+
+        if (!data.length) {
+          tbody.innerHTML = messageRow("No records found.");
+          return;
+        }
+
+        // Single DOM write instead of one per row
+        tbody.innerHTML = data.map((item, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${esc(item.outlet || item.outlet_name || "-")}</td>
+            <td>${esc(item.user || item.primary_user || "-")}</td>
+            <td>${esc(item.clock_in || item.clock_out || "-")}</td>
+            <td>${esc(item.current_user || "-")}</td>
+            <td>${item.latitude ? esc(item.latitude + "," + item.longitude) : "-"}</td>
+            <td>
+              ${metric === "force_closure"
+                ? `<button class="btn btn-sm btn-danger force-close-btn" data-id="${esc(item.id)}">Force Close</button>`
+                : ""}
+            </td>
+          </tr>`).join("");
+      } catch (err) {
+        console.error("Failed to load outlet details:", err);
+        tbody.innerHTML = messageRow("Failed to load data. Please try again.", "text-danger");
+      }
+    });
+  });
+
+  // Event delegation for Force Close buttons
+  tbody.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".force-close-btn");
+    if (!btn) return;
+    if (!confirm("Force close this attendance record?")) return;
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/attendance/force_close/${btn.dataset.id}`, { method: "POST" });
+      const data = await res.json();
+      if (data.status === "success") {
+        btn.closest("td").innerHTML = "<span class='text-success'>Closed</span>";
+      } else {
+        throw new Error("Server rejected the request");
+      }
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      alert("Failed to close record");
+    }
+  });
+});
 </script>
+
 
 
 <script>
