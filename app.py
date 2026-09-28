@@ -1226,7 +1226,7 @@ def outlets_details(metric):
         outlets = Outlet.query.filter(
         not_(
             exists().where(
-                #(Attendance.outlet_id == outlets.outlet_id) &
+                (Attendance.outlet_id == outlets.outlet_id) &
                 (Attendance.date == date.today()) &
                 (Attendance.check_in_time.isnot(None))
             )
