@@ -1219,9 +1219,9 @@ def force_close(attendance_id):
         return jsonify({"status": "success"})
     return jsonify({"status": "error"}), 400
 
-@app.route("/outlets/details/<string:metric>")
+@app.route("/not_updated_outlets/details/<string:metric>")
 @login_required
-def outlets_details(metric):
+def not_updated_outlets_details(metric):
     if metric == "unattended":
         outlets = Outlet.query.filter(
         not_(
@@ -1268,7 +1268,7 @@ def outlets_details(metric):
         records = Attendance.query.filter(
             Attendance.date == date.today(),
             Attendance.check_in_time.isnot(None),
-            Attendance.check_out_time.is_(None)
+            #Attendance.check_out_time.is_(None)
         ).all()
         return jsonify([{
             "id": r.id,
@@ -1317,6 +1317,152 @@ def outlets_details(metric):
                     "longitude": o.longitude
                 })
             return jsonify(data)
+    # Add more metrics as needed
+    return jsonify([])
+
+
+@app.route("/outlets/details/<string:metric>")
+@login_required
+def outlets_details(metric):
+    today = date.today()
+
+    if metric == "unattended":
+        outlets = Outlet.query.filter(
+            not_(
+                exists().where(
+                    (Attendance.outlet_id == Outlet.outlet_id) &
+                    (Attendance.date == today) &
+                    (Attendance.check_in_time.isnot(None))
+                )
+            )
+        ).order_by(func.lower(Outlet.name)).all()
+
+        return jsonify([{"id": o.outlet_id, "name": o.name} for o in outlets])
+
+    elif metric == "force_closure":
+        records = Attendance.query.filter(
+            Attendance.check_out_time.is_(None),
+            Attendance.check_in_time < today
+        ).all()
+
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username if r.user else "-",
+            "outlet": r.outlet_name,
+            "clock_in": format_local_time(r.check_in_time)
+        } for r in records])
+
+    elif metric == "pending_clockouts":
+        records = Attendance.query.filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None)
+        ).all()
+
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username if r.user else "-",
+            "outlet": r.outlet_name,
+            "clock_in": format_local_time(r.check_in_time)
+        } for r in records])
+
+    elif metric == "clocked_in":
+        records = (
+            Attendance.query
+            .filter(
+                Attendance.date == today,
+                Attendance.check_in_time.isnot(None)
+            )
+            .order_by(Attendance.check_in_time.desc())  # newest first
+            .all()
+        )
+
+        # Keep only the latest check-in per user/outlet pair
+        seen = set()
+        unique = []
+        for r in records:
+            key = (r.user_id, r.outlet_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(r)
+
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username if r.user else "-",
+            "outlet": r.outlet_name,
+            "clock_in": format_local_time(r.check_in_time)
+        } for r in unique])
+
+    elif metric == "clocked_out":
+        records = Attendance.query.filter(
+            Attendance.date == today,
+            Attendance.check_out_time.isnot(None)
+        ).all()
+
+        return jsonify([{
+            "id": r.id,
+            "user": r.user.username if r.user else "-",
+            "outlet": r.outlet_name,
+            "clock_out": format_local_time(r.check_out_time)
+        } for r in records])
+
+    elif metric == "all_outlets":
+        outlets = Outlet.query.order_by(func.lower(Outlet.name)).all()
+        data = []
+
+        for o in outlets:
+            primary_assignment = AssignedOutlet.query.filter(
+                AssignedOutlet.outlet_id == o.outlet_id,
+                AssignedOutlet.primary_outlet_id.isnot(None)
+            ).first()
+            primary_user = None
+            if primary_assignment:
+                user = Users.query.get(primary_assignment.user_id)
+                primary_user = user.username if user else None
+
+            # Currently clocked in (no check-out yet) today
+            active_attendance = (
+                Attendance.query
+                .filter(
+                    Attendance.outlet_id == o.outlet_id,
+                    Attendance.date == today,
+                    Attendance.check_out_time.is_(None),
+                    Attendance.check_in_time.isnot(None)
+                )
+                .first()
+            )
+            current_user = active_attendance.user.username if active_attendance and active_attendance.user else None
+            clock_in_time = format_local_time(active_attendance.check_in_time) if active_attendance else None
+
+            # Most recent completed shift today
+            last_closed = (
+                Attendance.query
+                .filter(
+                    Attendance.outlet_id == o.outlet_id,
+                    Attendance.date == today,
+                    Attendance.check_out_time.isnot(None)
+                )
+                .order_by(Attendance.check_out_time.desc())
+                .first()
+            )
+            clocked_out_user = last_closed.user.username if last_closed and last_closed.user else None
+            clock_out_time = format_local_time(last_closed.check_out_time) if last_closed else None
+
+            data.append({
+                "outlet_id": o.outlet_id,
+                "outlet_name": o.name,
+                "primary_user": primary_user,
+                "current_user": current_user,
+                "clock_in_time": clock_in_time,
+                "clocked_out_user": clocked_out_user,
+                "clock_out_time": clock_out_time,
+                "latitude": o.latitude,
+                "longitude": o.longitude
+            })
+
+        return jsonify(data)
+
     # Add more metrics as needed
     return jsonify([])
 
