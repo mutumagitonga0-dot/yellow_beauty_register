@@ -1022,7 +1022,7 @@ def format_local_time(dt):
     return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-QUICK_CLOCKOUT_THRESHOLD_MINUTES = 900  # adjust to whatever counts as "too soon"
+QUICK_CLOCKOUT_THRESHOLD_MINUTES = 120  # adjust to whatever counts as "too soon"
 
 # --- ROUTES ---
 def verify_clock_action(action, outlet_id=None, confirmed=False):
@@ -1130,7 +1130,7 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
             check_in = check_in.replace(tzinfo=timezone.utc)
         elapsed_minutes = (datetime.now(timezone.utc) - check_in).total_seconds() / 60
         
-        print("elapsed_minutes line 1133",elapsed_minutes)
+        #print("elapsed_minutes line 1133",elapsed_minutes)
         if elapsed_minutes < QUICK_CLOCKOUT_THRESHOLD_MINUTES and not confirmed:
             return "warning", {
                 "warning": f"You clocked in only {int(elapsed_minutes)} minute(s) ago "
@@ -1645,13 +1645,18 @@ def outlets_details(metric):
             not_(
                 exists().where(
                     (Attendance.outlet_id == Outlet.outlet_id) &
-                    (Attendance.date == today) 
-                   # & (Attendance.check_in_time.isnot(None))
+                    (Attendance.date == today) &
+                    (Attendance.check_in_time.isnot(None))
                 )
             )
         ).order_by(func.lower(Outlet.name)).all()
 
-        return jsonify([{"id": o.outlet_id, "name": o.name} for o in outlets])
+        return jsonify([{
+            "id": o.outlet_id,
+            "outlet": o.name,       # matches item.outlet in your JS
+            "user": "-",            # no attendance record exists, so nothing to show
+            "clock_in": "-"
+        } for o in outlets])
 
     elif metric == "force_closure":
         records = Attendance.query.filter(
