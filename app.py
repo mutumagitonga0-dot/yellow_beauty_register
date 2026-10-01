@@ -2242,16 +2242,24 @@ def outlet_settings():
     selected_outlet = None
 
     # Free reps: users with no assignments or no primary outlet
+    #free_reps = Users.query.filter(
+    #    ~Users.id.in_(db.session.query(AssignedOutlet.user_id))
+    #).union(
+    #    Users.query.filter(
+    #        ~Users.id.in_(
+    #            db.session.query(AssignedOutlet.user_id)
+    #            .filter(AssignedOutlet.primary_outlet_id.isnot(None))
+    #        )
+    #    )
+    #).all()
+
+
     free_reps = Users.query.filter(
-        ~Users.id.in_(db.session.query(AssignedOutlet.user_id))
-    ).union(
-        Users.query.filter(
-            ~Users.id.in_(
-                db.session.query(AssignedOutlet.user_id)
-                .filter(AssignedOutlet.primary_outlet_id.isnot(None))
-            )
+        ~Users.id.in_(
+            db.session.query(AssignedOutlet.user_id)
+            .filter(AssignedOutlet.primary_outlet_id.isnot(None))
         )
-    ).all()
+    ).order_by(func.lower(Users.staff_name)).all()
 
     # Build mappings
     assigned_outlet_reps = {}             # outlet_id -> list of primary reps
