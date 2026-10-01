@@ -2102,7 +2102,8 @@ def reports():
 @login_required
 def attendance_summary():
     users = retrieve_offline_users()
-    outlets = Outlet.query.all()
+    #outlets = Outlet.query.all()
+    outlets = Outlet.query.order_by(func.lower(Outlet.name)).all()
     #{format_local_time(latest_record.check_in_time)}
     return render_template("settings/attendance_summary.html", users=users, outlets=outlets)
 
@@ -2505,7 +2506,8 @@ def serialize_txn(txn):
 @app.route('/settings/manage_users', methods=['GET', 'POST'])
 @login_required
 def manage_users():
-    outlets = Outlet.query.all()
+    #outlets = Outlet.query.all()
+    outlets = Outlet.query.order_by(func.lower(Outlet.name)).all()
 
     if request.method == "POST":
         action = request.form.get("action")
