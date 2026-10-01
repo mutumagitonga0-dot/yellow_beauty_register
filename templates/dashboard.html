@@ -413,7 +413,66 @@ function getLocationAndSend(endpoint, statusElementId) {
   );
 }
 
-function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
+function sendToBackend(endpoint, statusElementId, lat, lon, accuracy, confirmed = false, reason = null) {
+  const outletId = document.getElementById("selectedOutlet")?.value || null;
+  const statusEl = document.getElementById(statusElementId);
+
+  console.log("Sending to backend:", endpoint, { outletId, lat, lon, accuracy, confirmed, reason });
+
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      outlet_id: outletId,
+      latitude: lat,
+      longitude: lon,
+      accuracy: accuracy,
+      confirmed: confirmed,
+      reason: reason
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    // Quick clock-out (or any future) confirmation prompt
+    if (data.requires_confirmation) {
+      setBusy(false); // re-enable buttons while we wait on the user
+
+      const proceed = confirm(data.warning);
+      if (!proceed) {
+        statusEl.textContent = "Clock-out cancelled.";
+        return;
+      }
+
+      let userReason = null;
+      if (data.requires_reason) {
+        userReason = prompt("Please provide a reason for clocking out this soon:");
+        if (!userReason || !userReason.trim()) {
+          statusEl.textContent = "A reason is required to proceed.";
+          return;
+        }
+        userReason = userReason.trim();
+      }
+
+      // Resubmit with confirmation (and reason, if required)
+      setBusy(true);
+      statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Confirming...';
+      sendToBackend(endpoint, statusElementId, lat, lon, accuracy, true, userReason);
+      return;
+    }
+
+    statusEl.textContent = data.success || data.error;
+if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
+  alert(data.success);          // popup confirmation
+  window.location.href = "/dashboard";
+}
+  })
+  .catch(err => {
+    statusEl.textContent = "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+function suspend_1st_oct_sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
   const outletId = document.getElementById("selectedOutlet")?.value || null;
 
   console.log("Sending to backend:", endpoint, { outletId, lat, lon, accuracy });
@@ -442,7 +501,21 @@ function sendToBackend(endpoint, statusElementId, lat, lon, accuracy) {
 }
 
 
-
+function showSuccessToast(message) {
+  const toastEl = document.createElement("div");
+  toastEl.className = "toast align-items-center text-bg-success border-0 position-fixed top-0 start-50 translate-middle-x mt-3";
+  toastEl.style.zIndex = 2050; // above modals, consistent with your earlier fix
+  toastEl.setAttribute("role", "alert");
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>`;
+  document.body.appendChild(toastEl);
+  const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+  toast.show();
+  toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+}
 
 function suspend_getLocationAndSend(endpoint, statusElementId) {
   setBusy(true);
@@ -521,8 +594,8 @@ function clockOut() {
   getLocationAndSend("/clockout", "checkoutStatus");
 }
 
- function alertLastcheckoutOnLoad() {
-  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
+function alertLastcheckoutOnLoad() {
+ getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
 }
 
 document.addEventListener("DOMContentLoaded", function() {

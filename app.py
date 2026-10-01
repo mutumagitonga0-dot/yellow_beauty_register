@@ -1022,8 +1022,10 @@ def format_local_time(dt):
     return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+QUICK_CLOCKOUT_THRESHOLD_MINUTES = 900  # adjust to whatever counts as "too soon"
+
 # --- ROUTES ---
-def verify_clock_action(action, outlet_id=None):
+def verify_clock_action(action, outlet_id=None, confirmed=False):
     data = request.json
     user_lat = data.get("latitude")
     user_lon = data.get("longitude")
@@ -1032,14 +1034,224 @@ def verify_clock_action(action, outlet_id=None):
     if not user_lat or not user_lon:
         return False, {"error": "Location required"}, None, None, None, None, None
 
-    # ... existing outlet selection logic ...
-        #print("checking clock in action -757")
+    last_record = Attendance.query.filter_by(user_id=current_user.id)\
+                                  .order_by(Attendance.id.desc())\
+                                  .first()
+
+    if action == "clockin":
+        if last_record and last_record.check_out_time is None:
+            if last_record.date == date.today():
+                return False, {
+                    "error": f"You are already clocked in at {last_record.outlet_name} "
+                             f"since {format_local_time(last_record.check_in_time)}. Please clock out first."
+                }, None, None, None, None, last_record
+            else:
+                return False, {
+                    "error": f"You have an unclosed session from {last_record.date} "
+                             f"at {last_record.outlet_name}. Please contact Admin Muchemi "
+                             f"to be logged out before clocking in today."
+                }, None, None, None, None, last_record
+
+        outlet = None
+        distance = None
+
+        if outlet_id:
+            outlet = Outlet.query.filter_by(outlet_id=outlet_id).first()
+            assigned = AssignedOutlet.query.filter_by(
+                user_id=current_user.id,
+                outlet_id=outlet_id
+            ).first()
+            if not outlet or not assigned:
+                return False, {"error": "You are not assigned to this outlet"}, None, None, None, None, None
+
+            distance = haversine(float(user_lat), float(user_lon),
+                                  float(outlet.latitude), float(outlet.longitude))
+            if distance > float(outlet.clock_in_radius):
+                return False, {"error": f"You are not within {outlet.name} radius"}, None, None, None, None, None
+
+        else:
+            primary_assignment = AssignedOutlet.query.filter(
+                AssignedOutlet.user_id == current_user.id,
+                AssignedOutlet.primary_outlet_id.isnot(None)
+            ).first()
+
+            if primary_assignment:
+                candidate = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
+                if candidate:
+                    dist = haversine(float(user_lat), float(user_lon),
+                                      float(candidate.latitude), float(candidate.longitude))
+                    if dist <= float(candidate.clock_in_radius):
+                        outlet = candidate
+                        distance = dist
+
+            if not outlet:
+                assignments = AssignedOutlet.query.filter_by(user_id=current_user.id).all()
+                for a in assignments:
+                    o = Outlet.query.filter_by(outlet_id=a.outlet_id).first()
+                    if not o:
+                        continue
+                    dist = haversine(float(user_lat), float(user_lon),
+                                      float(o.latitude), float(o.longitude))
+                    if dist <= float(o.clock_in_radius):
+                        outlet = o
+                        distance = dist
+                        break
+
+            if not outlet:
+                return False, {"error": "No valid outlet found within radius"}, None, None, None, None, None
+
+        return True, "Ready to clock in", distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+    elif action == "clockout":
+        if not last_record or last_record.check_out_time is not None:
+            return False, {"error": "You are not currently clocked in."}, None, None, None, None, last_record
+
+        if last_record.date != date.today() and current_user.role != 1:
+            return False, {
+                "error": f"You have an unclosed session from {last_record.date} "
+                         f"at {last_record.outlet_name}. Please contact Admin Muchemi "
+                         f"to have it closed before proceeding."
+            }, None, None, None, None, last_record
+
+        outlet = Outlet.query.filter_by(outlet_id=last_record.outlet_id).first()
+        print("outlet line 1117",outlet)
+        if not outlet:
+            return False, {
+                "error": "Your clocked-in outlet could not be found. Please contact Admin Muchemi."
+            }, None, None, None, None, last_record
+
+        distance = haversine(float(user_lat), float(user_lon),
+                              float(outlet.latitude), float(outlet.longitude))
+        if distance > float(outlet.clock_in_radius):
+            return False, {"error": f"You are not within {outlet.name} radius"}, None, None, None, None, last_record
+
+        check_in = last_record.check_in_time
+        if check_in.tzinfo is None:
+            check_in = check_in.replace(tzinfo=timezone.utc)
+        elapsed_minutes = (datetime.now(timezone.utc) - check_in).total_seconds() / 60
+        
+        print("elapsed_minutes line 1133",elapsed_minutes)
+        if elapsed_minutes < QUICK_CLOCKOUT_THRESHOLD_MINUTES and not confirmed:
+            return "warning", {
+                "warning": f"You clocked in only {int(elapsed_minutes)} minute(s) ago "
+                           f"at {last_record.outlet_name}. Do you want to proceed with clocking out?",
+                "requires_confirmation": True,
+                "requires_reason": True
+            }, distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+        return True, {"success": "Ready to clock out"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+    elif action == "status":
+        if last_record and last_record.check_out_time is None:
+            return False, {
+                "error": f"You are already clocked in at {last_record.outlet_name} "
+                         f"since {format_local_time(last_record.check_in_time)}"
+            }, None, None, None, None, last_record
+        return True, {"success": "No active login, you can clock in"}, None, float(user_lat), float(user_lon), None, last_record
+
+@app.route("/clockin", methods=["POST"])
+@login_required
+def clock_in():
+    payload = request.get_json(silent=True) or {}
+    confirmed = payload.get("confirmed", False)
+    outlet_id = payload.get("outlet_id")  # None if frontend doesn't send one — falls back to auto-resolve
+
+    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action(
+        "clockin", outlet_id=outlet_id, confirmed=confirmed
+    )
+
+    if not ok:
+        return jsonify(response_data), 400
+
+    check_in_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    outlet = Outlet.query.filter_by(name=outletname).first()
+
+    record = Attendance(
+        user_id=current_user.id,
+        date=date.today(),
+        check_in_time=check_in_time,
+        check_out_time=None,
+        status="Clocked In",
+        clockin_distance=distance,
+        geo_lat=user_lat,
+        geo_lon=user_lon,
+        device_info="PC",
+        remarks=None,
+        outlet_id=outlet.outlet_id if outlet else None,
+        outlet_name=outlet.name if outlet else "None",
+        outlet_address=outlet.address if outlet else "None"
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    summary = get_today_summary(current_user.id)
+    return {
+        "success": f"Clock-in successful at {format_local_time(check_in_time)}, {distance:.2f}m from {outletname}",
+        "summary": summary
+    }
+
+@app.route("/clockout", methods=["POST"])
+@login_required
+def clock_out():
+    payload = request.get_json(silent=True) or {}
+    confirmed = payload.get("confirmed", False)
+    reason = payload.get("reason")
+
+    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action(
+        "clockout", confirmed=confirmed
+    )
+
+    print("ok",ok,response_data,outletname)
+    if ok == "warning":
+        return jsonify(response_data), 200
+
+    if not ok:
+        return jsonify(response_data), 400
+
+    check_out_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    last_record.check_out_time = check_out_time
+    last_record.clockout_distance = distance
+
+    if reason:
+        last_record.clockout_note = reason  # still needs confirmation this column exists
+
+    outlet = Outlet.query.filter_by(name=outletname).first()
+    if outlet:
+        last_record.outlet_id = outlet.outlet_id
+        last_record.outlet_name = outlet.name
+        last_record.status = 'Clocked Out'
+    else:
+        last_record.outlet_id = None
+        last_record.outlet_name = "None"
+
+    if last_record.check_in_time:
+        check_in = last_record.check_in_time
+        if check_in.tzinfo is None:
+            check_in = check_in.replace(tzinfo=timezone.utc)
+        delta = check_out_time - check_in
+        hours_worked = round(delta.total_seconds() / 3600, 2)
+        last_record.work_hours = hours_worked
+        last_record.overtime_hours = max(0, hours_worked - 8)
+
+    db.session.commit()
+
+    summary = get_today_summary(current_user.id)
+    return {
+        "success": f"Clocked out {format_local_time(check_out_time)} successfully "
+                   f"at {distance:.2f}m from {outletname}",
+        "summary": summary
+    }
+
+
+
+def st_oct_verify_clock_action(action, confirmed=False):
     data = request.json
     user_lat = data.get("latitude")
     #print("user_lat", user_lat)
     user_lon = data.get("longitude")
     #print("user_lon", user_lon)
     accuracy = data.get("accuracy")
+    outlet_id=None
 
     # Treat stored time as UTC, then convert
     #utc = pytz.utc
@@ -1135,39 +1347,58 @@ def verify_clock_action(action, outlet_id=None):
 
         return True, "Ready to clock in", distance, float(user_lat), float(user_lon), outlet.name, last_record
 
+    # inside verify_clock_action, clockout branch, after the outlet-match check:
     elif action == "clockout":
         if not last_record or last_record.check_out_time is not None:
-            return False, {"error": "You are not currently clocked in"}, None, None, None, None, last_record
-        return True, "Ready to clock out", distance, float(user_lat), float(user_lon), outlet.name, last_record
+            return False, {"error": "You are not currently clocked in."}, None, None, None, None, last_record
+       
+        if last_record.date != date.today():  #and current_user.role !=1
+            return False, {
+                "error": f"You have an unclosed session from {last_record.date} "
+                        f"at {last_record.outlet_name}. Please contact Admin Muchemi "
+                        f"to have it closed before proceeding."
+            }, None, None, None, None, last_record
 
+        if last_record.outlet_id != outlet.outlet_id:
+            return False, {
+                "error": f"You clocked in at {last_record.outlet_name}. "
+                        f"Please clock out from that outlet, not {outlet.name}."
+            }, None, None, None, None, last_record
+        return True, "Ready to clock out", distance, float(user_lat), float(user_lon), outlet.name, last_record   
+    
     elif action == "status":
         if last_record and last_record.check_out_time is None:
             return False, {"error": f"You are already clocked in at {last_record.outlet_name} "
                                     f"since {format_local_time(last_record.check_in_time)}"}, None, None, None, None, last_record
         return True, {"success": "No active login, you can clock in"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
 
-@app.route("/clockin", methods=["POST"])
+@app.route("/st_oct_clockin", methods=["POST"])
 @login_required
-def clock_in():
+def st_oct_clock_in():
     #print("clocking in......918")
-    outlet_id=None
-    primary_assignment = AssignedOutlet.query.filter(
-            AssignedOutlet.user_id == current_user.id,
-            AssignedOutlet.primary_outlet_id.isnot(None)   # ✅ proper SQLAlchemy expression
-        ).first()
+    payload = request.get_json(silent=True) or {}
+    confirmed = payload.get("confirmed", False)
+    reason = payload.get("reason")
+    
+    #outlet_id=None
+    #primary_assignment = AssignedOutlet.query.filter(
+    #        AssignedOutlet.user_id == current_user.id,
+    #        AssignedOutlet.primary_outlet_id.isnot(None)   # ✅ proper SQLAlchemy expression
+    #    ).first()
 
     #print("main outlet assighed",primary_assignment)
-    if primary_assignment:
-        #outlet = Outlet.query.filter_by(id=primary_assignment.outlet_id).first()
-        outlet = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
-        outlet_id=outlet.outlet_id
+    #if primary_assignment:
+    #    #outlet = Outlet.query.filter_by(id=primary_assignment.outlet_id).first()
+    #    outlet = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
+    #    outlet_id=outlet.outlet_id
         
-    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("clockin",outlet_id)
+    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("clockin",confirmed=confirmed)
     
     if not ok:
         return jsonify(response_data), 400
 
-    check_in_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    #check_in_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    check_in_time = format_local_time(datetime.now())
     #outlet = Outlet.query.filter_by(user_id=current_user.id).first()
     outlet = Outlet.query.filter_by(name=outletname).first()
 
@@ -1197,9 +1428,65 @@ def clock_in():
         "summary": summary
     }
 
-@app.route("/clockout", methods=["POST"])
+@app.route("/st_oct_clockout", methods=["POST"])
 @login_required
-def clock_out():
+def st_oct_clock_out():
+    payload = request.get_json(silent=True) or {}
+    confirmed = payload.get("confirmed", False)
+    reason = payload.get("reason")
+    #outlet_id = payload.get("outlet_id")
+
+    #print ("checking arivval....1")
+    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("clockout",confimred=confirmed)
+
+    #print ("checking arivval....2")
+    #if ok == "warning":
+    #    return jsonify(response_data), 200
+
+    #print ("checking arivval....3")
+    if not ok:
+        return jsonify(response_data), 400
+
+    check_out_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    #check_out_time = format_local_time(datetime.now())
+    last_record.check_out_time = check_out_time
+    last_record.clockout_distance = distance
+
+    #print ("checking arivval....")
+    #if reason:
+    #    last_record.clockout_note = reason  # requires this column — still unconfirmed, see below
+
+    outlet = Outlet.query.filter_by(name=outletname).first()
+    if outlet:
+        last_record.outlet_id = outlet.outlet_id
+        last_record.outlet_name = outlet.name
+        last_record.status = 'Clocked Out'
+    else:
+        last_record.outlet_id = None
+        last_record.outlet_name = "None"
+
+    if last_record.check_in_time:
+        check_in = last_record.check_in_time
+        #check_in = format_local_time(last_record.check_in_time)    
+        if check_in.tzinfo is None:
+            check_in = check_in.replace(tzinfo=timezone.utc)
+        delta = check_out_time - check_in
+        hours_worked = round(delta.total_seconds() / 3600, 2)
+        last_record.work_hours = hours_worked
+        last_record.overtime_hours = max(0, hours_worked - 8)
+
+    db.session.commit()
+
+    summary = get_today_summary(current_user.id)
+    return {
+        "success": f"Clocked out {check_out_time} successfully "
+                   f"at {distance:.2f}m from {outletname}",
+        "summary": summary
+    }
+
+@app.route("/pending_clockout", methods=["POST"])
+@login_required
+def pending_clock_out():
     ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("clockout")
     if not ok:
         return jsonify(response_data), 400
