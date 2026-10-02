@@ -87,10 +87,12 @@ document.addEventListener("DOMContentLoaded", function() {
     </div>
     <div>
 
-        <a href="{{ url_for('attendance_register') }}" target="_blank" class="btn btn-primary" id="attendanceregister">
+        <!--a href="{{ url_for('attendance_register') }}" target="_blank" class="btn btn-primary" id="attendanceregister">
+  <i class="bi bi-file-earmark-text me-1"></i> Staff Register
+</a-->
+     <a href="{{ url_for('attendance_register') }}" class="btn btn-primary" id="attendanceregister">
   <i class="bi bi-file-earmark-text me-1"></i> Staff Register
 </a>
-    
 
     <button type="button" class="btn btn-primary" id="processoutletssummary">
         <i class="bi bi-play-circle me-1"></i> View Outlets
