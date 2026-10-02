@@ -176,6 +176,10 @@ class Attendance(db.Model):
     outlet_id = db.Column(db.Integer, nullable=True)  # business ID
     outlet_name = db.Column(db.String(100), nullable=True)
     outlet_address = db.Column(db.String(100), nullable=True)
+    # Attendance model
+    force_closed = db.Column(db.Boolean, default=False, nullable=False)
+    #force_closed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    force_closed_by = db.Column(db.Integer, nullable=True)  # user_id, queried manually — no FK/relationship
 
 
 class Shift(db.Model):
@@ -188,6 +192,8 @@ class Shift(db.Model):
     overtime_rate = db.Column(db.Float, nullable=True)
 
     attendances = db.relationship("Attendance", backref="shift", lazy=True)
+    #attendances = db.relationship("Attendance",foreign_keys="Attendance.user_id",backref="user",lazy=True)
+    
 
 class Leave(db.Model):
     __tablename__ = "leave"
@@ -843,6 +849,13 @@ def returning_id_get_current_user_outlet():
 @app.route("/dashboard", methods=["GET", "POST"])
 @login_required
 def dashboard():
+
+    #Attendance.query.filter(
+    #Attendance.remarks.ilike("%Force clock-out%"),
+    #Attendance.force_closed == False
+    #).update({"force_closed": True}, synchronize_session=False)
+    #db.session.commit()
+
     user_id = current_user.id
     user = Users.query.get(user_id)
     if not user:
@@ -1244,6 +1257,83 @@ def clock_out():
 
 
 
+import calendar
+#from sqlalchemy import func
+#from datetime import date, datetime, timezone
+
+@app.route("/attendance_register")
+@login_required
+def attendance_register():
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_date = date(year, month, 1)
+    end_date = date(year, month, days_in_month)
+
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+
+    # Batch-fetch admin names for force-closed records (avoid N+1)
+    admin_ids = {r.force_closed_by for r in records if r.force_closed_by}
+    admins_by_id = (
+        {u.id: u.staff_name for u in Users.query.filter(Users.id.in_(admin_ids)).all()}
+        if admin_ids else {}
+    )
+
+    records_by_user = {}
+    for r in records:
+        records_by_user.setdefault(r.user_id, []).append(r)
+
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+
+    rows = []
+    for u in all_users:
+        user_records = records_by_user.get(u.id, [])
+        days = {}
+        outlets_in = set()
+        outlets_out = set()
+        force_closed_days = {}  # day -> admin name
+
+        for r in user_records:
+            day = r.date.day
+            if r.force_closed:
+                admin_name = admins_by_id.get(r.force_closed_by, "Unknown")
+                force_closed_days[day] = admin_name
+            else:
+                days[day] = days.get(day, 0) + (r.work_hours or 0)
+
+            if r.check_in_time:
+                outlets_in.add(r.outlet_id)
+            if r.check_out_time:
+                outlets_out.add(r.outlet_id)
+
+        rows.append({
+            "name": u.staff_name,
+            "days": days,
+            "outlets_in_count": len(outlets_in),
+            "outlets_out_count": len(outlets_out),
+            "force_closed_days": force_closed_days,
+            "force_closed_count": len(force_closed_days)
+        })
+
+    return render_template(
+        "attendance_register.html",
+        rows=rows,
+        days_in_month=days_in_month,
+        day_range=range(1, days_in_month + 1),
+        month=month,
+        year=year,
+        month_name=calendar.month_name[month],
+        today_day=date.today().day if (year == date.today().year and month == date.today().month) else None,
+        now=datetime.now(timezone.utc)
+    )
+
+
+
+
 def st_oct_verify_clock_action(action, confirmed=False):
     data = request.json
     user_lat = data.get("latitude")
@@ -1524,6 +1614,20 @@ def pending_clock_out():
 @app.route("/attendance/force_close/<int:attendance_id>", methods=["POST"])
 @login_required
 def force_close(attendance_id):
+    rec = Attendance.query.get(attendance_id)
+    if rec and rec.check_out_time is None:
+        rec.check_out_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        rec.remarks = (rec.remarks + " | " if rec.remarks else "") + f"Force clock-out by {current_user.username}"
+        rec.status = 'Clocked Out'
+        rec.force_closed = True
+        rec.force_closed_by = current_user.id
+        db.session.commit()
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error"}), 400
+
+@app.route("/st_oct_attendance/force_close/<int:attendance_id>", methods=["POST"])
+@login_required
+def st_oct_force_close(attendance_id):
     rec = Attendance.query.get(attendance_id)
     if rec and rec.check_out_time is None:
         rec.check_out_time = datetime.now().replace(second=0, microsecond=0)
