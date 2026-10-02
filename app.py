@@ -1270,6 +1270,84 @@ def attendance_register():
     days_in_month = calendar.monthrange(year, month)[1]
     start_date = date(year, month, 1)
     end_date = date(year, month, days_in_month)
+    today = date.today()
+
+    day_labels = [
+        calendar.day_abbr[date(year, month, d).weekday()]
+        for d in range(1, days_in_month + 1)
+    ]
+
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+    records_by_user_day = {(r.user_id, r.date.day): r for r in records}
+
+    # --- TODO: wire real Off/Leave sources here ---
+    # off_lookup = {(user_id, day): True, ...}   # from Shifts/roster
+    # leave_lookup = {(user_id, day): True, ...} # from Leave model
+    off_lookup = {}
+    leave_lookup = {}
+    # ------------------------------------------------
+
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+
+    rows = []
+    for u in all_users:
+        day_statuses = []
+        p_count = o_count = l_count = a_count = 0
+
+        for d in range(1, days_in_month + 1):
+            this_date = date(year, month, d)
+            rec = records_by_user_day.get((u.id, d))
+
+            if this_date > today:
+                status = ""  # future day — leave blank
+            elif rec and rec.check_in_time:
+                status = "P"
+                p_count += 1
+            elif leave_lookup.get((u.id, d)):
+                status = "L"
+                l_count += 1
+            elif off_lookup.get((u.id, d)):
+                status = "O"
+                o_count += 1
+            else:
+                status = "A"
+                a_count += 1
+
+            day_statuses.append(status)
+
+        rows.append({
+            "name": u.staff_name,
+            "day_statuses": day_statuses,
+            "p_count": p_count,
+            "o_count": o_count,
+            "l_count": l_count,
+            "a_count": a_count
+        })
+
+    return render_template(
+        "attendance_register.html",
+        rows=rows,
+        days_in_month=days_in_month,
+        day_range=range(1, days_in_month + 1),
+        day_labels=day_labels,
+        month=month,
+        year=year,
+        month_name=calendar.month_name[month],
+        now=datetime.now(timezone.utc)
+    )
+
+@app.route("/hold_oct_second_attendance_register")
+@login_required
+def hold_oct_second_attendance_register():
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_date = date(year, month, 1)
+    end_date = date(year, month, days_in_month)
 
     records = Attendance.query.filter(
         Attendance.date >= start_date,

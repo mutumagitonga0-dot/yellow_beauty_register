@@ -2,7 +2,6 @@
 {% block content %}
 <div class="register-wrapper">
 
-  <!-- Screen-only controls, hidden when printing -->
   <div class="no-print d-flex justify-content-between align-items-center mb-3">
     <form class="d-flex gap-2" method="get">
       {% set month_names = ['January','February','March','April','May','June',
@@ -20,67 +19,44 @@
     </button>
   </div>
 
-  <h4 class="text-center mb-1">Attendance Register</h4>
-  <h6 class="text-center text-muted mb-4">{{ month_name }} {{ year }}</h6>
+  <h5 class="mb-3">{{ month_name|upper }}-{{ year }} Attendance Register</h5>
 
   <div class="table-responsive">
     <table class="register-table">
       <thead>
         <tr>
-          <th class="sticky-col">Staff Name</th>
-          <th>Outlets<br>In</th>
-          <th>Outlets<br>Out</th>
-          <th>Force<br>Closed</th>
-          {% for d in day_range %}
-            <th class="{{ 'today-col' if d == today_day else '' }}">{{ d }}</th>
+          <th class="sticky-col" rowspan="2">Staff Names</th>
+          <th rowspan="2">PRST (P)</th>
+          <th rowspan="2">Off (O)</th>
+          <th rowspan="2">Leave (L)</th>
+          <th rowspan="2">Absnt (A)</th>
+          {% for label in day_labels %}
+            <th>{{ label }}</th>
           {% endfor %}
-          <th>Total<br>Hours</th>
+        </tr>
+        <tr>
+          {% for d in day_range %}
+            <th>{{ d }}</th>
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
         <tr>
           <td class="sticky-col staff-name">{{ row.name }}</td>
-          <td class="text-center">{{ row.outlets_in_count }}</td>
-          <td class="text-center">{{ row.outlets_out_count }}</td>
-          <td class="text-center {{ 'text-danger fw-bold' if row.force_closed_count > 0 else '' }}">
-            {{ row.force_closed_count }}
-          </td>
-          {% set total = namespace(hours=0) %}
-          {% for d in day_range %}
-            {% set hrs = row.days.get(d) %}
-            {% set fc_admin = row.force_closed_days.get(d) %}
-            <td class="text-center {{ 'today-col' if d == today_day else '' }}
-                       {{ 'absent-day' if hrs is none and not fc_admin else '' }}
-                       {{ 'force-closed-day' if fc_admin else '' }}"
-                {% if fc_admin %}title="Force-closed by {{ fc_admin }}"{% endif %}>
-              {% if fc_admin %}
-                FC
-              {% elif hrs is not none %}
-                {{ "%.1f"|format(hrs) }}
-                {% set total.hours = total.hours + hrs %}
-              {% else %}
-                —
-              {% endif %}
-            </td>
+          <td class="text-center">{{ row.p_count }}</td>
+          <td class="text-center">{{ row.o_count }}</td>
+          <td class="text-center">{{ row.l_count }}</td>
+          <td class="text-center">{{ row.a_count }}</td>
+          {% for status in row.day_statuses %}
+            <td class="text-center status-{{ status|lower if status else 'blank' }}">{{ status }}</td>
           {% endfor %}
-          <td class="text-center fw-bold">{{ "%.1f"|format(total.hours) }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
-  <div class="register-footer mt-4">
-    <p class="small text-muted">
-	Generated {{ now }} ·
-      "—" = no record · "FC" = force-closed by admin (hover for details, excluded from hours total)
-    </p>
-    <div class="d-flex justify-content-between mt-5">
-      <div>Prepared by: ______________________</div>
-      <div>Approved by: ______________________</div>
-    </div>
-  </div>
-
+  <p class="small text-muted mt-3">Generated {{ now }}</p>
 </div>
 {% endblock %}
