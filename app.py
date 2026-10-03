@@ -1037,7 +1037,7 @@ def format_local_time(dt):
 
 QUICK_CLOCKOUT_THRESHOLD_MINUTES = 120  # adjust to whatever counts as "too soon"
 
-# --- ROUTES ---
+# --- ROUTES ---#
 def verify_clock_action(action, outlet_id=None, confirmed=False):
     data = request.json
     user_lat = data.get("latitude")
