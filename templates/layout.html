@@ -321,6 +321,33 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 
+<style>
+.register-table { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
+.register-table th, .register-table td { border: 1px solid #ccc; padding: 3px 5px; text-align: center; }
+.sticky-col { position: sticky; left: 0; background: #fff; text-align: left; min-width: 160px; }
+.week-end { border-right: 2px solid #495057; }
+
+.status-p { color: #198754; font-weight: 600; }
+.status-o { color: #6c757d; }
+.status-a { color: #dc3545; font-weight: 600; }
+.status-l { color: #fd7e14; font-weight: 600; }
+
+.summary-cards { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem; }
+.summary-card {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 10px 16px;
+  min-width: 110px;
+  text-align: center;
+  background: #fff;
+}
+.summary-label { font-size: 0.7rem; text-transform: uppercase; color: #6c757d; letter-spacing: 0.3px; }
+.summary-value { font-size: 1.25rem; font-weight: 700; }
+.summary-card.status-p .summary-value { color: #198754; }
+.summary-card.status-o .summary-value { color: #6c757d; }
+.summary-card.status-l .summary-value { color: #fd7e14; }
+.summary-card.status-a .summary-value { color: #dc3545; }
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 

@@ -1,0 +1,33 @@
+<table class="register-table">
+  <thead>
+    <tr>
+      <th class="sticky-col" rowspan="2">Staff Names</th>
+      <th rowspan="2">PRST (P)</th>
+      <th rowspan="2">Off (O)</th>
+      <th rowspan="2">Leave (L)</th>
+      <th rowspan="2">Absnt (A)</th>
+      {% for label in day_labels %}
+        <th class="{{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ label }}</th>
+      {% endfor %}
+    </tr>
+    <tr>
+      {% for d in day_range %}
+        <th class="{{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ d }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td class="sticky-col staff-name">{{ row.name }}</td>
+      <td class="text-center">{{ row.p_count }}</td>
+      <td class="text-center">{{ row.o_count }}</td>
+      <td class="text-center">{{ row.l_count }}</td>
+      <td class="text-center">{{ row.a_count }}</td>
+      {% for status in row.day_statuses %}
+        <td class="text-center status-{{ status|lower if status else 'blank' }} {{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ status }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

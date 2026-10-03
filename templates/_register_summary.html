@@ -1,0 +1,38 @@
+<div class="summary-cards">
+  <div class="summary-card">
+    <div class="summary-label">Total Staff</div>
+    <div class="summary-value">{{ summary.total_staff }}</div>
+  </div>
+  <div class="summary-card status-p">
+    <div class="summary-label">Present Days</div>
+    <div class="summary-value">{{ summary.total_present }}</div>
+  </div>
+  <div class="summary-card status-o">
+    <div class="summary-label">Off Days</div>
+    <div class="summary-value">{{ summary.total_off }}</div>
+  </div>
+  <div class="summary-card status-l">
+    <div class="summary-label">Leave Days</div>
+    <div class="summary-value">{{ summary.total_leave }}</div>
+  </div>
+  <div class="summary-card status-a">
+    <div class="summary-label">Absent Days</div>
+    <div class="summary-value">{{ summary.total_absent }}</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Avg Clock-In</div>
+    <div class="summary-value">{{ summary.avg_clock_in or "—" }}</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Avg Clock-Out</div>
+    <div class="summary-value">{{ summary.avg_clock_out or "—" }}</div>
+  </div>
+  <div class="summary-card {{ 'text-danger' if summary.total_force_closed > 0 else '' }}">
+    <div class="summary-label">Force Clock-Outs</div>
+    <div class="summary-value">{{ summary.total_force_closed }}</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Completion Rate</div>
+    <div class="summary-value">{{ summary.completion_rate ~ "%" if summary.completion_rate is not none else "—" }}</div>
+  </div>
+</div>
