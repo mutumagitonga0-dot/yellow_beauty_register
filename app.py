@@ -1192,7 +1192,9 @@ def clock_in():
         remarks=None,
         outlet_id=outlet.outlet_id if outlet else None,
         outlet_name=outlet.name if outlet else "None",
-        outlet_address=outlet.address if outlet else "None"
+        outlet_address=outlet.address if outlet else "None",
+        force_closed=False,
+        force_closed_by=None
     )
     db.session.add(record)
     db.session.commit()
