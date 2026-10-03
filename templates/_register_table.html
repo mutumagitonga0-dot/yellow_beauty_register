@@ -6,6 +6,9 @@
       <th rowspan="2">Off (O)</th>
       <th rowspan="2">Leave (L)</th>
       <th rowspan="2">Absnt (A)</th>
+      <th rowspan="2">Avg<br>In</th>
+      <th rowspan="2">Avg<br>Out</th>
+      <th rowspan="2">Force<br>Closed</th>
       {% for label in day_labels %}
         <th class="{{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ label }}</th>
       {% endfor %}
@@ -24,6 +27,9 @@
       <td class="text-center">{{ row.o_count }}</td>
       <td class="text-center">{{ row.l_count }}</td>
       <td class="text-center">{{ row.a_count }}</td>
+      <td class="text-center">{{ row.avg_clock_in or "—" }}</td>
+      <td class="text-center">{{ row.avg_clock_out or "—" }}</td>
+      <td class="text-center {{ 'text-danger fw-bold' if row.force_closed_count > 0 else '' }}">{{ row.force_closed_count }}</td>
       {% for status in row.day_statuses %}
         <td class="text-center status-{{ status|lower if status else 'blank' }} {{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ status }}</td>
       {% endfor %}
