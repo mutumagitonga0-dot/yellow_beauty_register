@@ -1143,15 +1143,9 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
                             f"Contact Admin Muchemi if this is incorrect."
             }, None, None, None, None, today_record
         
-        #if not last_record or last_record.check_out_time is not None:
-        #    return False, {"error": "You are not currently clocked in."}, None, None, None, None, last_record
-        if last_record and last_record.check_out_time is None:
-                    return False, {
-                        "error": f"You have a pending clock-out at {last_record.outlet_name} "
-                                f"since {format_local_time(last_record.check_in_time)}"
-                    }, None, float(user_lat), float(user_lon), None, last_record
-
-
+        if not last_record or last_record.check_out_time is not None:
+            return False, {"error": "You are not currently clocked in."}, None, None, None, None, last_record
+        
         if last_record.date != date.today() and current_user.role != 1:
             return False, {
                 "error": f"You have an unclosed session from {last_record.date} "
