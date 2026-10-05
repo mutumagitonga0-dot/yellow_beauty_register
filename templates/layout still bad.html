@@ -291,24 +291,6 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 
 <script>
-function showPopup(message, type) {
-  const toast = document.createElement("div");
-  toast.className = `toast align-items-center text-bg-${type} border-0 show position-fixed`;
-  toast.role = "alert";
-  toast.style.top = "50%";
-  toast.style.left = "50%";
-  toast.style.transform = "translate(-50%, -50%)";
-  toast.innerHTML = `
-    <div class="d-flex">
-      <div class="toast-body">${message}</div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-    </div>`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
-}
-</script>
-
-<script>
 document.addEventListener("DOMContentLoaded", function() {
   const currentPath = window.location.pathname;
   document.querySelectorAll(".nav-link").forEach(link => {
@@ -320,109 +302,6 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 </script>
-
-<style>
-.register-table { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
-.register-table th, .register-table td { border: 1px solid #ccc; padding: 3px 5px; text-align: center; }
-.sticky-col { position: sticky; left: 0; background: #fff; text-align: left; min-width: 160px; }
-.week-end { border-right: 2px solid #495057; }
-
-.status-p { color: #198754; font-weight: 600; }
-.status-o { color: #6c757d; }
-.status-a { color: #dc3545; font-weight: 600; }
-.status-l { color: #fd7e14; font-weight: 600; }
-
-.summary-cards { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem; }
-.summary-card {
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  padding: 10px 16px;
-  min-width: 110px;
-  text-align: center;
-  background: #fff;
-}
-.summary-label { font-size: 0.7rem; text-transform: uppercase; color: #6c757d; letter-spacing: 0.3px; }
-.summary-value { font-size: 1.25rem; font-weight: 700; }
-.summary-card.status-p .summary-value { color: #198754; }
-.summary-card.status-o .summary-value { color: #6c757d; }
-.summary-card.status-l .summary-value { color: #fd7e14; }
-.summary-card.status-a .summary-value { color: #dc3545; }
-</style>
-
-
-<!-- Toast container -->
-<div id="toastStack" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 2060;"></div>
-
-<script>
-/**
- * Shows a Bootstrap toast notification.
- * @param {string} message - The message to display.
- * @param {"success"|"error"|"warning"|"info"} type - Visual style.
- * @param {number} delay - Auto-dismiss time in ms (default 4000).
- */
-function showToast(message, type = "info", delay = 4000) {
-  const styles = {
-    success: { bg: "text-bg-success", icon: "bi-check-circle" },
-    error:   { bg: "text-bg-danger",  icon: "bi-x-circle" },
-    warning: { bg: "text-bg-warning", icon: "bi-exclamation-triangle" },
-    info:    { bg: "text-bg-primary", icon: "bi-info-circle" }
-  };
-  const style = styles[type] || styles.info;
-
-  const toastEl = document.createElement("div");
-  toastEl.className = `toast align-items-center ${style.bg} border-0`;
-  toastEl.setAttribute("role", "alert");
-  toastEl.innerHTML = `
-    <div class="d-flex">
-      <div class="toast-body"><i class="bi ${style.icon} me-2"></i>${message}</div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-    </div>`;
-
-  document.getElementById("toastStack").appendChild(toastEl);
-  const toast = new bootstrap.Toast(toastEl, { delay });
-  toast.show();
-  toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
-}
-
-/**
- * Shows a confirm-style modal instead of native confirm().
- * Returns a Promise<boolean> — resolves true if user confirms.
- */
-function showConfirm(message, { confirmText = "Confirm", confirmClass = "btn-danger" } = {}) {
-  return new Promise((resolve) => {
-    const modalId = "dynamicConfirmModal_" + Date.now();
-    const modalEl = document.createElement("div");
-    modalEl.className = "modal fade";
-    modalEl.id = modalId;
-    modalEl.innerHTML = `
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-body py-4 text-center">
-            <i class="bi bi-question-circle fs-1 text-warning d-block mb-2"></i>
-            <p class="mb-0">${message}</p>
-          </div>
-          <div class="modal-footer justify-content-center border-0 pt-0">
-            <button type="button" class="btn btn-secondary" id="${modalId}_cancel">Cancel</button>
-            <button type="button" class="btn ${confirmClass}" id="${modalId}_confirm">${confirmText}</button>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(modalEl);
-    const modal = new bootstrap.Modal(modalEl);
-
-    document.getElementById(`${modalId}_confirm`).addEventListener("click", () => {
-      resolve(true);
-      modal.hide();
-    });
-    document.getElementById(`${modalId}_cancel`).addEventListener("click", () => resolve(false));
-    modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove());
-
-    modal.show();
-  });
-}
-</script>
-
-
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 

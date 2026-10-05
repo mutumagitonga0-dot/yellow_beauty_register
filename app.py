@@ -742,14 +742,24 @@ def load_user(user_id):
     return db.session.get(Users, int(user_id))
     
 
+from functools import wraps
+
 def admin_required(f):
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated(*args, **kwargs):
+        if current_user.role not in (1, 2):
+            return jsonify({"error": "You do not have permission to perform this action."}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+def outdated_admin_required(f):
+    @wraps(f)
+    def outdated_decorated_function(*args, **kwargs):
         if current_user.role != "admin":
             flash("Access denied: Admins only", "danger")
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
-    return decorated_function
+    return outdated_decorated_function
 
 @app.route('/admin/employees')
 @login_required
@@ -1048,10 +1058,198 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
         return False, {"error": "Location required"}, None, None, None, None, None
 
     last_record = Attendance.query.filter_by(user_id=current_user.id)\
+                                  .order_by(Attendance.user_id.desc())\
+                                  .first()
+
+    today_record = Attendance.query.filter_by(
+        user_id=current_user.id,
+        date=date.today()
+    ).first()
+
+    if action == "clockin":
+        if today_record and today_record.status in ("Off", "On Leave"):
+            return False, {
+                "error": f"You are scheduled as {today_record.status} today and cannot clock in. "
+                         f"Contact Admin Muchemi if this is incorrect."
+            }, None, None, None, None, today_record
+
+        if last_record and last_record.check_out_time is None:
+            if last_record.date == date.today():
+                return False, {
+                    "error": f"You are already clocked in at {last_record.outlet_name} "
+                             f"since {format_local_time(last_record.check_in_time)}. Please clock out first."
+                }, None, None, None, None, last_record
+            else:
+                return False, {
+                    "error": f"You have an unclosed session from {last_record.date} "
+                             f"at {last_record.outlet_name}. Please contact Admin Muchemi "
+                             f"to be logged out before clocking in today."
+                }, None, None, None, None, last_record
+
+        outlet = None
+        distance = None
+
+        if outlet_id:
+            outlet = Outlet.query.filter_by(outlet_id=outlet_id).first()
+            assigned = AssignedOutlet.query.filter_by(
+                user_id=current_user.id,
+                outlet_id=outlet_id
+            ).first()
+            if not outlet or not assigned:
+                return False, {"error": "You are not assigned to this outlet"}, None, None, None, None, None
+
+            distance = haversine(float(user_lat), float(user_lon),
+                                  float(outlet.latitude), float(outlet.longitude))
+            if distance > float(outlet.clock_in_radius):
+                return False, {"error": f"You are not within {outlet.name} radius"}, None, None, None, None, None
+
+        else:
+            primary_assignment = AssignedOutlet.query.filter(
+                AssignedOutlet.user_id == current_user.id,
+                AssignedOutlet.primary_outlet_id.isnot(None)
+            ).first()
+
+            if primary_assignment:
+                candidate = Outlet.query.filter_by(outlet_id=primary_assignment.outlet_id).first()
+                if candidate:
+                    dist = haversine(float(user_lat), float(user_lon),
+                                      float(candidate.latitude), float(candidate.longitude))
+                    if dist <= float(candidate.clock_in_radius):
+                        outlet = candidate
+                        distance = dist
+
+            if not outlet:
+                assignments = AssignedOutlet.query.filter_by(user_id=current_user.id).all()
+                for a in assignments:
+                    o = Outlet.query.filter_by(outlet_id=a.outlet_id).first()
+                    if not o:
+                        continue
+                    dist = haversine(float(user_lat), float(user_lon),
+                                      float(o.latitude), float(o.longitude))
+                    if dist <= float(o.clock_in_radius):
+                        outlet = o
+                        distance = dist
+                        break
+
+            if not outlet:
+                return False, {"error": "No valid outlet found within radius"}, None, None, None, None, None
+
+        return True, "Ready to clock in", distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+    elif action == "clockout":
+        if today_record and today_record.status in ("Off", "On Leave"):
+            return False, {
+                "error": f"You are scheduled as {today_record.status} today and cannot clock in. "
+                            f"Contact Admin Muchemi if this is incorrect."
+            }, None, None, None, None, today_record
+        
+        if not last_record or last_record.check_out_time is not None:
+            return False, {"error": "You are not currently clocked in."}, None, None, None, None, last_record
+
+        if last_record.date != date.today() and current_user.role != 1:
+            return False, {
+                "error": f"You have an unclosed session from {last_record.date} "
+                         f"at {last_record.outlet_name}. Please contact Admin Muchemi "
+                         f"to have it closed before proceeding."
+            }, None, None, None, None, last_record
+
+        outlet = Outlet.query.filter_by(outlet_id=last_record.outlet_id).first()
+        if not outlet:
+            return False, {
+                "error": "Your clocked-in outlet could not be found. Please contact Admin Muchemi."
+            }, None, None, None, None, last_record
+
+        distance = haversine(float(user_lat), float(user_lon),
+                              float(outlet.latitude), float(outlet.longitude))
+        if distance > float(outlet.clock_in_radius):
+            return False, {"error": f"You are not within {outlet.name} radius"}, None, None, None, None, last_record
+
+        check_in = last_record.check_in_time
+        if check_in.tzinfo is None:
+            check_in = check_in.replace(tzinfo=timezone.utc)
+        elapsed_minutes = (datetime.now(timezone.utc) - check_in).total_seconds() / 60
+
+        if elapsed_minutes < QUICK_CLOCKOUT_THRESHOLD_MINUTES and not confirmed:
+            return "warning", {
+                "warning": f"You clocked in only {int(elapsed_minutes)} minute(s) ago "
+                           f"at {last_record.outlet_name}. Do you want to proceed with clocking out?",
+                "requires_confirmation": True,
+                "requires_reason": True
+            }, distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+        return True, {"success": "Ready to clock out"}, distance, float(user_lat), float(user_lon), outlet.name, last_record
+
+    elif action == "check_in_status":
+        if today_record and today_record.status in ("Off", "On Leave"):
+            return False, {
+                "error": f"You are scheduled as {today_record.status} today. "
+                        f"You cannot clock in or out."
+            }, None, float(user_lat), float(user_lon), None, today_record
+
+        if last_record and last_record.check_out_time is None:
+            return False, {
+                "error": f"You are already clocked in at {last_record.outlet_name} "
+                        f"since {format_local_time(last_record.check_in_time)}"
+            }, None, None, None, None, last_record
+
+        return True, {"success": "No active login, you can clock in"}, None, float(user_lat), float(user_lon), None, last_record
+
+    elif action == "check_out_status":
+        if today_record and today_record.status in ("Off", "On Leave"):
+            return False, {
+                "error": f"You are scheduled as {today_record.status} today. "
+                        f"There is no clock-out to perform."
+            }, None, float(user_lat), float(user_lon), None, today_record
+
+        if last_record and last_record.check_out_time is None:
+            return False, {
+                "error": f"You have a pending clock-out at {last_record.outlet_name} "
+                        f"since {format_local_time(last_record.check_in_time)}"
+            }, None, float(user_lat), float(user_lon), None, last_record
+
+        return True, {"success": "No pending clock-out found"}, None, float(user_lat), float(user_lon), None, last_record
+
+
+    elif action == "preserve_this_status":
+        if today_record and today_record.status in ("Off", "On Leave"):
+            return False, {
+                "error": f"You are scheduled as {today_record.status} today. "
+                         f"You cannot clock in or out."
+            }, None, float(user_lat), float(user_lon), None, today_record
+
+        if last_record and last_record.check_out_time is None:
+            return False, {
+                "error": f"You are already clocked in at {last_record.outlet_name} "
+                         f"since {format_local_time(last_record.check_in_time)}"
+            }, None, None, None, None, last_record
+        return True, {"success": "No active login, you can clock in"}, None, float(user_lat), float(user_lon), None, last_record
+
+    
+def outdated_forth_oct_verify_clock_action(action, outlet_id=None, confirmed=False):
+    data = request.json
+    user_lat = data.get("latitude")
+    user_lon = data.get("longitude")
+    accuracy = data.get("accuracy")
+
+    if not user_lat or not user_lon:
+        return False, {"error": "Location required"}, None, None, None, None, None
+
+    last_record = Attendance.query.filter_by(user_id=current_user.id)\
                                   .order_by(Attendance.id.desc())\
                                   .first()
 
     if action == "clockin":
+        today_record = Attendance.query.filter_by(
+        user_id=current_user.id,
+        date=date.today()
+        ).first()
+
+        if today_record and today_record.status in ("Off", "On Leave"):
+                        return False, {
+                            "error": f"You are scheduled as {today_record.status} today and cannot clock in. "
+                                    f"Contact Admin Muchemi if this is incorrect."
+                        }, None, None, None, None, today_record
+
         if last_record and last_record.check_out_time is None:
             if last_record.date == date.today():
                 return False, {
@@ -1262,9 +1460,285 @@ import calendar
 #from sqlalchemy import func
 #from datetime import date, datetime, timezone
 
+from datetime import date, datetime
+
+@app.route("/admin/schedule_days", methods=["POST"])
+@login_required
+@admin_required
+def schedule_days():
+    payload = request.get_json(silent=True) or {}
+    user_ids = payload.get("user_ids", [])
+    dates_list = payload.get("dates", [])   # list of "YYYY-MM-DD" strings
+    day_type = payload.get("type")          # "Off" or "Leave"
+
+    if day_type not in ("Off", "Leave"):
+        return jsonify({"error": "Invalid type. Must be 'Off' or 'Leave'."}), 400
+    if not user_ids:
+        return jsonify({"error": "Select at least one staff member."}), 400
+    if not dates_list:
+        return jsonify({"error": "Select at least one date."}), 400
+
+    status_value = "On Leave" if day_type == "Leave" else "Off"
+
+    parsed_dates = []
+    for d_str in dates_list:
+        try:
+            parsed_dates.append(datetime.strptime(d_str, "%Y-%m-%d").date())
+        except ValueError:
+            return jsonify({"error": f"Invalid date format: {d_str}"}), 400
+
+    inserted = 0
+    skipped = []
+
+    for target_date in parsed_dates:
+        for uid in user_ids:
+            existing = Attendance.query.filter_by(user_id=uid, date=target_date).first()
+            if existing:
+                user_obj = Users.query.get(uid)
+                skipped.append({
+                    "user": user_obj.staff_name if user_obj else f"User {uid}",
+                    "date": target_date.strftime("%Y-%m-%d"),
+                    "reason": f"Already has a record (status: {existing.status})"
+                })
+                continue
+
+            record = Attendance(
+                user_id=uid,
+                date=target_date,
+                check_in_time=None,
+                check_out_time=None,
+                status=status_value,
+                remarks=f"Scheduled {status_value} by {current_user.username}"
+            )
+            db.session.add(record)
+            inserted += 1
+
+    db.session.commit()
+
+    return jsonify({
+        "success": f"Scheduled {inserted} day(s) successfully.",
+        "inserted": inserted,
+        "skipped": skipped
+    })
+
+@app.route("/admin/unschedule_days", methods=["POST"])
+@login_required
+@admin_required
+def unschedule_days():
+    payload = request.get_json(silent=True) or {}
+    record_ids = payload.get("record_ids", [])
+
+    if not record_ids:
+        return jsonify({"error": "No records selected."}), 400
+
+    removed = 0
+    blocked = []
+
+    for rid in record_ids:
+        rec = Attendance.query.get(rid)
+        if not rec:
+            continue
+        if rec.status not in ("Off", "On Leave") or rec.check_in_time is not None:
+            blocked.append(rid)  # already worked or not a scheduled record — can't remove
+            continue
+        db.session.delete(rec)
+        removed += 1
+
+    db.session.commit()
+
+    return jsonify({
+        "success": f"Removed {removed} scheduled day(s).",
+        "blocked_count": len(blocked)
+    })
+
+@app.route("/outdated_oct_forth_admin/unschedule_day", methods=["POST"])
+@login_required
+@admin_required
+def outdated_oct_forth_unschedule_day():
+    payload = request.get_json(silent=True) or {}
+    user_id = payload.get("user_id")
+    date_str = payload.get("date")
+
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid date format."}), 400
+
+    rec = Attendance.query.filter_by(user_id=user_id, date=target_date).first()
+    if not rec:
+        return jsonify({"error": "No scheduled record found for that date."}), 404
+
+    if rec.status not in ("Off", "On Leave"):
+        return jsonify({"error": "This record is not a scheduled Off/Leave day."}), 400
+
+    if rec.check_in_time is not None:
+        return jsonify({"error": "Cannot remove — user has already clocked in on this day."}), 400
+
+    db.session.delete(rec)
+    db.session.commit()
+    return jsonify({"success": "Scheduled day removed."})
+
+@app.route("/admin/scheduled_days_list", methods=["POST"])
+@login_required
+@admin_required
+def scheduled_days_list():
+    payload = request.get_json(silent=True) or {}
+    user_ids = payload.get("user_ids", [])
+
+    if not user_ids:
+        return jsonify({"error": "No staff selected."}), 400
+
+    today = date.today()
+    records = (
+        Attendance.query.filter(
+            Attendance.user_id.in_(user_ids),
+            Attendance.status.in_(["Off", "On Leave"]),
+            Attendance.check_in_time.is_(None),
+            Attendance.date >= today
+        )
+        .order_by(Attendance.date.asc())
+        .all()
+    )
+
+    users_by_id = {u.id: u.staff_name for u in Users.query.filter(Users.id.in_(user_ids)).all()}
+
+    return jsonify([{
+        "id": r.id,
+        "user_name": users_by_id.get(r.user_id, "Unknown"),
+        "date": r.date.strftime("%Y-%m-%d"),
+        "status": r.status
+    } for r in records])
+
 @app.route("/attendance_register")
 @login_required
 def attendance_register():
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+    print_mode = request.args.get("print") == "1"
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_date = date(year, month, 1)
+    end_date = date(year, month, days_in_month)
+    today = date.today()
+
+    day_labels = [
+        calendar.day_abbr[date(year, month, d).weekday()]
+        for d in range(1, days_in_month + 1)
+    ]
+
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+    records_by_user_day = {(r.user_id, r.date.day): r for r in records}
+
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+
+    def avg_time(minutes_list):
+        if not minutes_list:
+            return None
+        avg = round(sum(minutes_list) / len(minutes_list))
+        return f"{avg // 60:02d}:{avg % 60:02d}"
+
+    rows = []
+    global_clock_in_minutes = []
+    global_clock_out_minutes = []
+    total_force_closed = 0
+
+    for u in all_users:
+        day_statuses = []
+        p_count = o_count = l_count = a_count = 0
+        user_clock_in_minutes = []
+        user_clock_out_minutes = []
+        user_force_closed = 0
+
+        for d in range(1, days_in_month + 1):
+            this_date = date(year, month, d)
+            rec = records_by_user_day.get((u.id, d))
+
+            if rec and rec.check_in_time:
+                status = "P"
+                p_count += 1
+
+                ci = rec.check_in_time
+                if ci.tzinfo is None:
+                    ci = ci.replace(tzinfo=timezone.utc)
+                user_clock_in_minutes.append(ci.hour * 60 + ci.minute)
+                global_clock_in_minutes.append(ci.hour * 60 + ci.minute)
+
+                if rec.check_out_time:
+                    co = rec.check_out_time
+                    if co.tzinfo is None:
+                        co = co.replace(tzinfo=timezone.utc)
+                    user_clock_out_minutes.append(co.hour * 60 + co.minute)
+                    global_clock_out_minutes.append(co.hour * 60 + co.minute)
+
+                if rec.force_closed:
+                    user_force_closed += 1
+                    total_force_closed += 1
+
+            elif rec and rec.status == "On Leave":
+                status = "L"
+                l_count += 1
+            elif rec and rec.status == "Off":
+                status = "O"
+                o_count += 1
+            elif this_date > today:
+                status = ""  # future, nothing scheduled — leave blank
+            else:
+                status = "A"
+                a_count += 1
+
+            day_statuses.append(status)
+
+        rows.append({
+            "name": u.staff_name,
+            "day_statuses": day_statuses,
+            "p_count": p_count,
+            "o_count": o_count,
+            "l_count": l_count,
+            "a_count": a_count,
+            "avg_clock_in": avg_time(user_clock_in_minutes),
+            "avg_clock_out": avg_time(user_clock_out_minutes),
+            "force_closed_count": user_force_closed
+        })
+
+    total_present = sum(r["p_count"] for r in rows)
+    total_off = sum(r["o_count"] for r in rows)
+    total_leave = sum(r["l_count"] for r in rows)
+    total_absent = sum(r["a_count"] for r in rows)
+    tracked_days = total_present + total_absent
+
+    summary = {
+        "total_staff": len(all_users),
+        "total_present": total_present,
+        "total_off": total_off,
+        "total_leave": total_leave,
+        "total_absent": total_absent,
+        "avg_clock_in": avg_time(global_clock_in_minutes),
+        "avg_clock_out": avg_time(global_clock_out_minutes),
+        "total_force_closed": total_force_closed,
+        "completion_rate": round((total_present / tracked_days) * 100, 1) if tracked_days else None
+    }
+
+    context = dict(
+        rows=rows,
+        days_in_month=days_in_month,
+        day_range=range(1, days_in_month + 1),
+        day_labels=day_labels,
+        month=month,
+        year=year,
+        month_name=calendar.month_name[month],
+        now=datetime.now(timezone.utc),
+        summary=summary
+    )
+
+    template = "attendance_register_print.html" if print_mode else "attendance_register.html"
+    return render_template(template, **context)
+
+@app.route("/no_off_n_leaves_attendance_register")
+@login_required
+def no_off_n_leaves_attendance_register():
     year = request.args.get("year", type=int) or date.today().year
     month = request.args.get("month", type=int) or date.today().month
     print_mode = request.args.get("print") == "1"
@@ -2424,13 +2898,20 @@ def static_clock_in():
 def check_active_login_existence():
     #print("active login checkin-1294")
     #def verify_clock_action(action, outlet_id=None):
-    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("status")
+    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("check_in_status")
     return jsonify(response_data)
 
 
 @app.route("/alert_user_last_clockout", methods=["POST"])
 @login_required
 def alert_user_last_clockout():
+    ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action("check_out_status")
+    return jsonify(response_data)
+
+
+@app.route("/not_updated_alert_user_last_clockout", methods=["POST"])
+@login_required
+def not_updated_alert_user_last_clockout():
     last_clockout = Attendance.query.filter(
         Attendance.user_id == current_user.id,
         Attendance.check_out_time.isnot(None)
@@ -2447,10 +2928,74 @@ def alert_user_last_clockout():
     else:
         return jsonify({"error": "No pending clock-out found"})
 
-
 @app.route("/summary", methods=["GET"])
 @login_required
 def today_summary():
+    today = date.today()
+    records = Attendance.query.filter_by(user_id=current_user.id, date=today)\
+                              .order_by(Attendance.check_in_time.asc()).all()
+
+    # Check for a scheduled Off/Leave day first — takes priority over both
+    # the "no records" and normal summary paths, since it's a distinct state
+    scheduled_record = next(
+        (r for r in records if r.status in ("Off", "On Leave") and r.check_in_time is None),
+        None
+    )
+    if scheduled_record:
+        return jsonify({
+            "alert": f"You are scheduled as {scheduled_record.status} today. "
+                     f"You cannot clock in or out.",
+            "status": scheduled_record.status,
+            "clock_in": None,
+            "clock_out": None,
+            "clock_in_count": 0,
+            "outlet": "None"
+        })
+
+    if not records:
+        return jsonify({
+            "clock_in": "You haven't clocked in today.",
+            "clock_out": "No clock-out record.",
+            "clock_in_count": 0,
+            "outlet": "None"
+        })
+
+    summary = {}
+
+    first_record = records[0]
+    summary["clock_in"] = (
+        f"You first clocked in at {format_local_time(first_record.check_in_time)} "
+        f"at {first_record.outlet_name or 'None'}"
+    )
+
+    last_record = records[-1]
+    if last_record.check_out_time:
+        summary["clock_out"] = (
+            f"You last clocked out at {format_local_time(last_record.check_out_time)} "
+            f"from {last_record.outlet_name or 'None'}"
+        )
+    else:
+        summary["clock_out"] = (
+            f"You are still logged in since {format_local_time(last_record.check_in_time)} "
+            f"at {last_record.outlet_name or 'None'}"
+        )
+
+    total_hours = sum((r.work_hours or 0) for r in records)
+    if last_record.check_in_time and not last_record.check_out_time:
+        check_in = last_record.check_in_time
+        if check_in.tzinfo is None:
+            check_in = check_in.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - check_in
+        total_hours += delta.total_seconds() / 3600
+
+    summary["clock_in_count"] = f"You have clocked-in {len(records)} times today."
+    summary["outlet"] = f"{last_record.outlet_name or 'None'}"
+
+    return jsonify(summary)
+
+@app.route("/outdated_forth_dec_summary", methods=["GET"])
+@login_required
+def outdated_forth_dec_today_summary():
     today = date.today()
     #print("are we here 975")
     records = Attendance.query.filter_by(user_id=current_user.id, date=today)\
@@ -2468,10 +3013,10 @@ def today_summary():
 
     summary = {}
 
-    # First clock-in of the day
+    # First clock-in of the day #{first_record.check_in_time.strftime('%H:%M')}
     first_record = records[0]
     summary["clock_in"] = (
-        f"You first clocked in at {first_record.check_in_time.strftime('%H:%M')} "
+        f"You first clocked in at {format_local_time(first_record.check_in_time)}"
         f"at {first_record.outlet_name or 'None'}"
     )
 

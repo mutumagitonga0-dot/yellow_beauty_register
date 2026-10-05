@@ -1,0 +1,83 @@
+<!-- Flatpickr (CDN, scoped to this modal only) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<!--div class="modal fade" id="scheduleDaysModal" tabindex="-1" aria-hidden="true"--->
+<div class="modal fade" id="scheduleDaysModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-calendar-plus me-1"></i> Schedule Off / Leave Days</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <div class="mb-3">
+          <label class="form-label">Select Dates</label>
+          <input type="text" class="form-control" id="scheduleDatesInput" placeholder="Click to pick dates...">
+          <div class="form-text">Click multiple dates on the calendar. Click a selected date again to deselect it.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label d-block">Type</label>
+          <div class="btn-group" role="group">
+            <input type="radio" class="btn-check" name="scheduleType" id="typeOff" value="Off" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="typeOff">Off Day</label>
+
+            <input type="radio" class="btn-check" name="scheduleType" id="typeLeave" value="Leave">
+            <label class="btn btn-outline-warning btn-sm" for="typeLeave">Leave</label>
+          </div>
+        </div>
+
+        <label class="form-label">Select Staff</label>
+        <div class="d-flex justify-content-between mb-1">
+          <input type="text" class="form-control form-control-sm w-50" id="staffSearchInput" placeholder="Search staff...">
+          <div>
+            <button type="button" class="btn btn-sm btn-link" id="selectAllStaff">Select All</button>
+            <button type="button" class="btn btn-sm btn-link" id="clearAllStaff">Clear</button>
+          </div>
+        </div>
+        <div class="border rounded p-2" style="max-height: 220px; overflow-y: auto;" id="staffCheckboxList">
+          {% for u in users %}
+            <div class="form-check">
+              <input class="form-check-input staff-checkbox" type="checkbox" value="{{ u.id }}" id="staff{{ u.id }}" data-name="{{ u.staff_name|lower }}">
+              <label class="form-check-label" for="staff{{ u.id }}">{{ u.staff_name }}</label>
+            </div>
+          {% endfor %}
+        </div>
+
+        <!-- Scheduled days list, shown after clicking UnSchedule -->
+        <div id="unscheduleSection" class="d-none mt-3 border-top pt-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label mb-0">Scheduled Days for Selected Staff</label>
+            <div>
+              <button type="button" class="btn btn-sm btn-link" id="selectAllScheduled">Select All</button>
+              <button type="button" class="btn btn-sm btn-link" id="clearAllScheduled">Clear</button>
+            </div>
+          </div>
+          <div class="border rounded p-2" style="max-height: 220px; overflow-y: auto;" id="scheduledDaysList">
+            <div class="text-muted small">Loading...</div>
+          </div>
+        </div>
+
+        <div id="scheduleResult" class="mt-3"></div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-outline-danger" id="submitUnScheduleBtn">
+          <i class="bi bi-calendar-x me-1"></i> UnSchedule
+        </button>
+        <button type="button" class="btn btn-danger d-none" id="confirmUnscheduleBtn">
+          <i class="bi bi-trash me-1"></i> Update (Remove Selected)
+        </button>
+        <button type="button" class="btn btn-primary" id="submitScheduleBtn">
+          <i class="bi bi-calendar-check me-1"></i> Schedule
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
