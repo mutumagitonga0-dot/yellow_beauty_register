@@ -1,133 +1,144 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="container mt-4">
-  <h2 class="mb-4">
-    <i class="bi bi-bar-chart-line me-2"></i> Attendance Summary Report
-  </h2>
+<div class="container-fluid mt-4 attendance-summary-page">
 
-   
-  <!-- Filters -->
-  <form id="attendanceReportForm" class="row g-3 mb-3">
-  <!-- Date Range -->
-  <div class="col-md-4">
-    <label class="form-label">Date Range</label>
-    <input type="date" class="form-control" name="start_date" id="start_date" required>
-    <input type="date" class="form-control mt-2" name="end_date" id="end_date" required>
-  </div>
-<!--/form-->
-
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  const today = new Date().toISOString().split("T")[0];
-  document.getElementById("start_date").value = today;
-  document.getElementById("end_date").value = today;
-});
-</script>
-
-<!-- users -->
-    <div class="col-md-4">
-  <label class="form-label">Users</label>
-  <!-- Select All toggle -->
-  <div class="form-check mb-2">
-    <input class="form-check-input" type="checkbox" id="selectAllUsers">
-    <label class="form-check-label" for="selectAllUsers">Select All Users</label>
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <h2 class="mb-0 page-title">
+      <i class="bi bi-bar-chart-line-fill me-2"></i> Attendance Summary Report
+    </h2>
+    <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back To Panel
+    </a>
   </div>
 
-  <div class="border rounded p-2 bg-light" style="max-height:80px; overflow-y:auto;">
-    {% for user in users %}
-    <div class="form-check">
-      <input class="form-check-input user-checkbox" type="checkbox" name="user_ids" value="{{ user.id }}" checked>
-      <label class="form-check-label">{{ user.username }}</label>
+  <!-- Filters Card -->
+  <div class="card filter-card mb-4">
+    <div class="card-body">
+      <form id="attendanceReportForm" class="row g-4">
+
+        <div class="col-md-4">
+          <label class="form-label fw-semibold"><i class="bi bi-calendar-range me-1"></i> Date Range</label>
+          <input type="date" class="form-control" name="start_date" id="start_date" required>
+          <input type="date" class="form-control mt-2" name="end_date" id="end_date" required>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-people me-1"></i> Users</span>
+          </label>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="selectAllUsers">
+            <label class="form-check-label small text-muted" for="selectAllUsers">Select All Users</label>
+          </div>
+          <div class="checklist-box">
+            {% for user in users %}
+            <div class="form-check">
+              <input class="form-check-input user-checkbox" type="checkbox" name="user_ids" value="{{ user.id }}" checked>
+              <label class="form-check-label">{{ user.username }}</label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-shop me-1"></i> Outlets</span>
+          </label>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="selectAllOutlets">
+            <label class="form-check-label small text-muted" for="selectAllOutlets">Select All Outlets</label>
+          </div>
+          <div class="checklist-box">
+            {% for outlet in outlets %}
+            <div class="form-check">
+              <input class="form-check-input outlet-checkbox" type="checkbox" name="outlet_ids" value="{{ outlet.outlet_id }}" checked>
+              <label class="form-check-label">{{ outlet.name }}</label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </form>
     </div>
-    {% endfor %}
   </div>
+
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("start_date").value = today;
+    document.getElementById("end_date").value = today;
+  });
+  </script>
+
+  <!-- Action Bar -->
+  <div class="card action-card mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+        <div class="btn-toolbar gap-2">
+          <div class="btn-group btn-group-sm" role="group" aria-label="Sort and export">
+            <button type="button" class="btn btn-outline-warning" id="resetSortBtn" title="Reset Sort">
+              <i class="bi bi-arrow-counterclockwise"></i> ResetSort
+            </button>
+            <button type="button" class="btn btn-outline-success" id="exportCSV">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV
+            </button>
+            <button type="button" class="btn btn-outline-info" id="exportExcel">
+              <i class="bi bi-file-earmark-excel me-1"></i> Excel
+            </button>
+            <button type="button" class="btn btn-outline-danger" id="exportPDF">
+              <i class="bi bi-file-earmark-pdf me-1"></i> PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="btn-toolbar gap-2">
+          {% include "_schedule_days_modal.html" %}
+          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#scheduleDaysModal">
+            <i class="bi bi-calendar-plus me-1"></i> Set Offs &amp; Leaves
+          </button>
+
+          <a href="{{ url_for('attendance_register') }}" class="btn btn-primary btn-sm" id="attendanceregister">
+            <i class="bi bi-file-earmark-text me-1"></i> Staff Register
+          </a>
+
+          <button type="button" class="btn btn-primary btn-sm" id="processoutletssummary">
+            <i class="bi bi-shop-window me-1"></i> View Outlets
+          </button>
+
+          <button type="button" class="btn btn-success btn-sm" id="processReportBtn">
+            <i class="bi bi-play-circle-fill me-1"></i> Process Report
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Table -->
+  <div class="card table-card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover mb-0" id="attendanceReportTable">
+          <thead class="table-dark">
+            <tr>
+              <th>User ID <span class="sort-icon"></span></th>
+              <th>Username <span class="sort-icon"></span></th>
+              <th>Recent Clock-In <span class="sort-icon"></span></th>
+              <th>Recent Clock-Out <span class="sort-icon"></span></th>
+              <th>Outlets Clocked <span class="sort-icon"></span></th>
+              <th>Status <span class="sort-icon"></span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows dynamically injected -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
-
-
-    <!-- Outlets -->
-    <div class="col-md-4">
-  <label class="form-label">Outlets</label>
-  <!-- Select All toggle -->
-  <div class="form-check mb-2">
-    <input class="form-check-input" type="checkbox" id="selectAllOutlets">
-    <label class="form-check-label" for="selectAllOutlets">Select All Outlets</label>
-  </div>
-
-  <div class="border rounded p-2 bg-light" style="max-height:80px; overflow-y:auto;">
-    {% for outlet in outlets %}
-    <div class="form-check">
-      <input class="form-check-input outlet-checkbox" type="checkbox" name="outlet_ids" value="{{ outlet.outlet_id }}" checked>
-      <label class="form-check-label">{{ outlet.name }}</label>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-  </form>
-
-
-<!-- Report Table -->
-<div class="table-responsive">
-
-  <!-- All buttons in one row -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <button type="button" class="btn btn-outline-warning" id="resetSortBtn">
-        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset Sort
-      </button>
-      <button type="button" class="btn btn-outline-success" id="exportCSV">
-        <i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV
-      </button>
-      <button type="button" class="btn btn-outline-info" id="exportExcel">
-        <i class="bi bi-file-earmark-excel me-1"></i> Excel
-      </button>
-      <button type="button" class="btn btn-outline-danger" id="exportPDF">
-        <i class="bi bi-file-earmark-pdf me-1"></i> PDF
-      </button>
-    </div>
-    <div>
-
-        <!--a href="{{ url_for('attendance_register') }}" target="_blank" class="btn btn-primary" id="attendanceregister">
-  <i class="bi bi-file-earmark-text me-1"></i> Staff Register
-</a-->
-{% include "_schedule_days_modal.html" %}
-<button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#scheduleDaysModal">
-  <i class="bi bi-calendar-plus me-1"></i> Set Offs & Leaves
-</button>
-
-     <a href="{{ url_for('attendance_register') }}" class="btn btn-primary" id="attendanceregister">
-  <i class="bi bi-file-earmark-text me-1"></i> Staff Register
-</a>
-
-    <button type="button" class="btn btn-primary" id="processoutletssummary">
-        <i class="bi bi-play-circle me-1"></i> View Outlets
-      </button>
-      
-      <button type="button" class="btn btn-primary" id="processReportBtn">
-        <i class="bi bi-play-circle me-1"></i> Process Report
-      </button>
-<a href="{{ url_for('settings') }}" class="btn btn-secondary">Back To Panel</a>
-    </div>
-  </div>
-
-  <table class="table table-striped table-hover" id="attendanceReportTable">
-    <thead class="table-dark">
-      <tr>
-        <th>User ID <span class="sort-icon"></span></th>
-        <th>Username <span class="sort-icon"></span></th>
-        <th>Recent Clock-In <span class="sort-icon"></span></th>
-        <th>Recent Clock-Out <span class="sort-icon"></span></th>
-        <th>Outlets Clocked <span class="sort-icon"></span></th>
-        <th>Status <span class="sort-icon"></span></th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- rows dynamically injected -->
-    </tbody>
-  </table>
-
-</div>
-
 
 <!-- Outlets Summary Modal -->
 <div class="modal fade" id="outletsSummaryModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="outletsSummaryModalLabel" aria-hidden="true">
@@ -141,7 +152,6 @@ document.addEventListener("DOMContentLoaded", function() {
       </div>
       <div class="modal-body">
 
-        <!-- Controls row -->
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <div class="btn-group" role="group" aria-label="Filter outlets">
             <input type="radio" class="btn-check" name="outletFilter" id="filterNotClocked" checked>
@@ -157,18 +167,13 @@ document.addEventListener("DOMContentLoaded", function() {
           <input type="text" class="form-control form-control-sm w-auto" id="outletSearchInput" placeholder="Search outlet...">
         </div>
 
-        <!-- Status summary -->
-        <div class="mb-2 small text-muted" id="outletsSummaryMeta">
-          <!-- e.g. "12 of 20 outlets not clocked in · as of 10:42 AM" -->
-        </div>
+        <div class="mb-2 small text-muted" id="outletsSummaryMeta"></div>
 
-        <!-- Loading state -->
         <div id="outletsSummaryLoading" class="text-center py-4 d-none">
           <div class="spinner-border text-primary" role="status"></div>
           <p class="mt-2 mb-0 text-muted">Loading outlet data...</p>
         </div>
 
-        <!-- Table -->
         <div class="table-responsive">
           <table class="table table-sm table-hover align-middle d-none" id="outletsSummaryTable">
             <thead class="table-dark">
@@ -183,7 +188,6 @@ document.addEventListener("DOMContentLoaded", function() {
           </table>
         </div>
 
-        <!-- Empty state -->
         <div id="outletsSummaryEmpty" class="text-center text-muted py-4 d-none">
           <i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>
           No outlets match this filter.
@@ -200,110 +204,49 @@ document.addEventListener("DOMContentLoaded", function() {
   </div>
 </div>
 
-<!--script>
-document.addEventListener("DOMContentLoaded", function() {
-  const summaryBtn = document.getElementById("processoutletssummary");
-  const summaryModalEl = document.getElementById("outletsSummaryModal");
-  const summaryModal = new bootstrap.Modal(summaryModalEl);
+<style>
+  .attendance-summary-page .page-title { font-weight: 600; color: #212529; }
 
-  const loadingEl = document.getElementById("outletsSummaryLoading");
-  const tableEl = document.getElementById("outletsSummaryTable");
-  const tbody = tableEl.querySelector("tbody");
-  const emptyEl = document.getElementById("outletsSummaryEmpty");
-  const metaEl = document.getElementById("outletsSummaryMeta");
-  const searchInput = document.getElementById("outletSearchInput");
-
-  let allOutletsData = []; // cached from last fetch
-
-  summaryBtn.addEventListener("click", () => {
-    summaryModal.show();
-    loadOutletsSummary();
-  });
-
-  document.getElementById("refreshOutletsSummary").addEventListener("click", loadOutletsSummary);
-
-  document.querySelectorAll('input[name="outletFilter"]').forEach(radio => {
-    radio.addEventListener("change", renderTable);
-  });
-
-  searchInput.addEventListener("input", renderTable);
-
-  async function loadOutletsSummary() {
-    loadingEl.classList.remove("d-none");
-    tableEl.classList.add("d-none");
-    emptyEl.classList.add("d-none");
-
-    try {
-      const response = await fetch("/outlet_clock_summary");
-      if (!response.ok) throw new Error(`Server responded ${response.status}`);
-      allOutletsData = await response.json();
-      renderTable();
-    } catch (err) {
-      console.error("Error fetching outlet summary:", err);
-      loadingEl.classList.add("d-none");
-      emptyEl.classList.remove("d-none");
-      emptyEl.innerHTML = `<i class="bi bi-exclamation-triangle fs-3 d-block mb-2 text-danger"></i>
-        Failed to load outlet data. <button class="btn btn-link btn-sm" id="retryLoad">Retry</button>`;
-      document.getElementById("retryLoad")?.addEventListener("click", loadOutletsSummary);
-    }
+  .filter-card, .action-card, .table-card {
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
 
-  function renderTable() {
-    loadingEl.classList.add("d-none");
-
-    const filter = document.querySelector('input[name="outletFilter"]:checked').id;
-    const searchTerm = searchInput.value.trim().toLowerCase();
-
-    let filtered = allOutletsData.filter(o => {
-      if (filter === "filterNotClocked" && o.clocked_in) return false;
-      if (filter === "filterClocked" && !o.clocked_in) return false;
-      return true;
-    });
-
-    if (searchTerm) {
-      filtered = filtered.filter(o => o.name.toLowerCase().includes(searchTerm));
-    }
-
-    // Already sorted A–Z by backend, but keep it safe on the frontend too
-    filtered.sort((a, b) => a.name.localeCompare(b.name));
-
-    const notClockedCount = allOutletsData.filter(o => !o.clocked_in).length;
-    metaEl.textContent = `${notClockedCount} of ${allOutletsData.length} outlets not clocked in · as of ${new Date().toLocaleTimeString()}`;
-
-    if (filtered.length === 0) {
-      tableEl.classList.add("d-none");
-      emptyEl.classList.remove("d-none");
-      emptyEl.innerHTML = `<i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i> No outlets match this filter.`;
-      return;
-    }
-
-    emptyEl.classList.add("d-none");
-    tableEl.classList.remove("d-none");
-
-    tbody.innerHTML = "";
-    filtered.forEach(o => {
-      const tr = document.createElement("tr");
-      const statusBadge = o.clocked_in
-        ? `<span class="badge bg-success">Clocked In</span>`
-        : `<span class="badge bg-danger">Not Clocked In</span>`;
-      tr.innerHTML = `
-        <td>${escapeHtml(o.name)}</td>
-        <td>${escapeHtml(o.outlet_id)}</td>
-        <td>${statusBadge}</td>
-        <td>${o.last_clock_in ? escapeHtml(o.last_clock_in) : "-"}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  .checklist-box {
+    max-height: 110px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: #f8f9fa;
   }
+  .checklist-box .form-check { margin-bottom: 2px; }
 
-  // Prevent injected outlet names/ids from breaking HTML if they ever contain special chars
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+  #attendanceReportTable th {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    white-space: nowrap;
   }
-});
-</script-->
+  #attendanceReportTable th:hover { background: #343a40; }
+  .sort-icon {
+    font-size: 0.75rem;
+    margin-left: 5px;
+    color: #adb5bd;
+  }
+  th.active-asc .sort-icon::after { content: "▲"; color: #fff; }
+  th.active-desc .sort-icon::after { content: "▼"; color: #fff; }
+
+  #attendanceReportTable tbody tr:hover { background-color: rgba(13,110,253,0.05); }
+
+  .btn-toolbar .btn { white-space: nowrap; }
+
+  @media (max-width: 991px) {
+    .btn-toolbar { flex-wrap: wrap; }
+  }
+</style>
+
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
@@ -414,25 +357,6 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 
 
-<style>
-  th {
-    cursor: pointer;
-    position: relative;
-  }
-  .sort-icon {
-    font-size: 0.8rem;
-    margin-left: 5px;
-    color: #ccc;
-  }
-  th.active-asc .sort-icon::after {
-    content: "▲";
-    color: #fff;
-  }
-  th.active-desc .sort-icon::after {
-    content: "▼";
-    color: #fff;
-  }
-</style>
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
@@ -855,139 +779,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
 });
 </script>
-
-
-<!--script>
-document.addEventListener("DOMContentLoaded", function() {
-  const table = document.getElementById("attendanceReportTable");
-  const headers = table.querySelectorAll("th");
-  const tbody = table.querySelector("tbody");
-  let sortDirection = {};
-  let originalRows = Array.from(tbody.querySelectorAll("tr")); // store original order
-
-  function sortTable(colIndex, forceDirection = null) {
-    const rows = Array.from(tbody.querySelectorAll("tr"));
-
-    // Toggle or force sort direction
-    if (forceDirection !== null) {
-      sortDirection[colIndex] = forceDirection;
-    } else {
-      sortDirection[colIndex] = !sortDirection[colIndex];
-    }
-
-    // Clear previous active states
-    headers.forEach(h => h.classList.remove("active-asc", "active-desc"));
-
-    // Apply new active state
-    headers[colIndex].classList.add(sortDirection[colIndex] ? "active-asc" : "active-desc");
-
-    rows.sort((a, b) => {
-      const aText = a.children[colIndex].innerText.trim();
-      const bText = b.children[colIndex].innerText.trim();
-
-      // ✅ Numeric sort
-      const aNum = parseFloat(aText);
-      const bNum = parseFloat(bText);
-      if (!isNaN(aNum) && !isNaN(bNum)) {
-        return sortDirection[colIndex] ? aNum - bNum : bNum - aNum;
-      }
-
-      // ✅ Time sort (HH:MM)
-      const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
-      if (timeRegex.test(aText) && timeRegex.test(bText)) {
-        const [aH, aM] = aText.split(":").map(Number);
-        const [bH, bM] = bText.split(":").map(Number);
-        const aMinutes = aH * 60 + aM;
-        const bMinutes = bH * 60 + bM;
-        return sortDirection[colIndex] ? aMinutes - bMinutes : bMinutes - aMinutes;
-      }
-
-      // ✅ DateTime sort (YYYY-MM-DD HH:MM)
-      const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-      if (dateTimeRegex.test(aText) && dateTimeRegex.test(bText)) {
-        const aDate = new Date(aText.replace(" ", "T"));
-        const bDate = new Date(bText.replace(" ", "T"));
-        return sortDirection[colIndex] ? aDate - bDate : bDate - aDate;
-      }
-
-      // ✅ Fallback string sort
-      return sortDirection[colIndex] 
-        ? aText.localeCompare(bText) 
-        : bText.localeCompare(aText);
-    });
-
-    // Re-append sorted rows
-    tbody.innerHTML = "";
-    rows.forEach(row => tbody.appendChild(row));
-  }
-
-  // Attach click handlers
-  headers.forEach((header, index) => {
-    header.addEventListener("click", () => sortTable(index));
-  });
-
-  // ✅ Default sort on page load → Recent Clock-In (colIndex = 2), descending
-  sortTable(2, false);
-
-  // ✅ Reset Sort button
-  document.getElementById("resetSortBtn").addEventListener("click", () => {
-    headers.forEach(h => h.classList.remove("active-asc", "active-desc"));
-    tbody.innerHTML = "";
-    originalRows.forEach(row => tbody.appendChild(row));
-  });
-});
-</script-->
-
-
-<!--script>
-document.addEventListener("DOMContentLoaded", function() {
-  const processBtn = document.getElementById("processReportBtn");
-  const reportTableBody = document.querySelector("#attendanceReportTable tbody");
-
-  processBtn.addEventListener("click", async function() {
-    // Disable button and show busy cursor
-    processBtn.disabled = true;
-    document.body.style.cursor = "wait";
-    processBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
-
-    const form = document.getElementById("attendanceReportForm");
-    const formData = new FormData(form);
-
-    try {
-      const response = await fetch("/generate_attendance_report", {
-        method: "POST",
-        body: formData
-      });
-      const data = await response.json();
-
-      // Clear table
-      reportTableBody.innerHTML = "";
-
-      // Populate table rows
-      data.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${row.user_id}</td>
-          <td>${row.username}</td>
-          <td>${row.recent_clock_in || "-"}</td>
-          <td>${row.recent_clock_out || "-"}</td>
-          <td>${row.outlets_clocked.join(", ")}</td>
-          <td>${row.status}</td>
-        `;
-        reportTableBody.appendChild(tr);
-      });
-    } catch (err) {
-      console.error("Error generating report:", err);
-      reportTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load report data.</td></tr>`;
-    } finally {
-      // Reset button and cursor
-      processBtn.disabled = false;
-      document.body.style.cursor = "default";
-      processBtn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Process Report';
-    }
-  });
-});
-</script-->
 
 
 {% endblock %}
