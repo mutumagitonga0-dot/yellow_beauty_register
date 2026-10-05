@@ -1058,7 +1058,7 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
         return False, {"error": "Location required"}, None, None, None, None, None
 
     last_record = Attendance.query.filter_by(user_id=current_user.id)\
-                                  .order_by(Attendance.user_id.desc())\
+                                  .order_by(Attendance.id.desc())\
                                   .first()
 
     today_record = Attendance.query.filter_by(
