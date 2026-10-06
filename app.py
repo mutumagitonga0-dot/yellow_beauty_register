@@ -1736,6 +1736,630 @@ def attendance_register():
     template = "attendance_register_print.html" if print_mode else "attendance_register.html"
     return render_template(template, **context)
 
+@app.route("/admin/schedule_grid")
+@login_required
+@admin_required
+def schedule_grid():
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+
+    days_in_month = calendar.monthrange(year, month)[1]
+
+    start_date = date(year, month, 1)
+    end_date = date(year, month, days_in_month)
+
+    # Today's date
+    today = date.today()
+
+    # ---------------------------------------------------------
+    # Day information
+    # weekday:
+    # Monday = 0
+    # Tuesday = 1
+    # Wednesday = 2
+    # Thursday = 3
+    # Friday = 4
+    # Saturday = 5
+    # Sunday = 6
+    # ---------------------------------------------------------
+    day_info = [
+        {
+            "day": d,
+            "label": calendar.day_abbr[
+                date(year, month, d).weekday()
+            ],
+            "weekday": date(year, month, d).weekday(),
+        }
+        for d in range(1, days_in_month + 1)
+    ]
+
+    # ---------------------------------------------------------
+    # Get attendance records for selected month
+    # ---------------------------------------------------------
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+
+    records_by_user_day = {
+        (r.user_id, r.date.day): r
+        for r in records
+    }
+
+    # ---------------------------------------------------------
+    # Get all staff
+    # ---------------------------------------------------------
+    all_users = Users.query.order_by(
+        func.lower(Users.staff_name)
+    ).all()
+
+    rows = []
+
+    for u in all_users:
+
+        cells = []
+
+        # These counts come from the database and form
+        # the initial saved values shown on the page.
+        o_count = 0
+        l_count = 0
+
+        for d in range(1, days_in_month + 1):
+
+            cell_date = date(year, month, d)
+
+            # True only for dates BEFORE today.
+            # Today remains editable.
+            is_past = cell_date < today
+
+            weekday = cell_date.weekday()
+
+            rec = records_by_user_day.get((u.id, d))
+
+            # -------------------------------------------------
+            # Present / Worked
+            # -------------------------------------------------
+            if rec and rec.check_in_time:
+
+                cells.append({
+                    "day": d,
+                    "value": "P",
+                    "locked": True,
+                    "past": is_past,
+                    "weekday": weekday,
+                })
+
+            # -------------------------------------------------
+            # Leave
+            # -------------------------------------------------
+            elif rec and rec.status == "On Leave":
+
+                cells.append({
+                    "day": d,
+                    "value": "L",
+                    "locked": False,
+                    "past": is_past,
+                    "weekday": weekday,
+                })
+
+                l_count += 1
+
+            # -------------------------------------------------
+            # Off
+            # -------------------------------------------------
+            elif rec and rec.status == "Off":
+
+                cells.append({
+                    "day": d,
+                    "value": "O",
+                    "locked": False,
+                    "past": is_past,
+                    "weekday": weekday,
+                })
+
+                o_count += 1
+
+            # -------------------------------------------------
+            # Empty
+            # -------------------------------------------------
+            else:
+
+                cells.append({
+                    "day": d,
+                    "value": "",
+                    "locked": False,
+                    "past": is_past,
+                    "weekday": weekday,
+                })
+
+        rows.append({
+            "id": u.id,
+            "name": u.staff_name,
+            "cells": cells,
+
+            # Saved database counts
+            "o_count": o_count,
+            "l_count": l_count,
+        })
+
+    # ---------------------------------------------------------
+    # Current date information
+    # ---------------------------------------------------------
+
+    month_names = {
+    m: calendar.month_name[m]
+    for m in range(1, 13)
+    }
+    
+    current_year = today.year
+    current_month = today.month
+    current_day = today.day
+
+    # ---------------------------------------------------------
+    # Render template
+    # ---------------------------------------------------------
+    return render_template(
+        "schedule_grid.html",
+
+        rows=rows,
+
+        day_range=range(
+            1,
+            days_in_month + 1
+        ),
+
+        day_labels=[
+            calendar.day_abbr[
+                date(year, month, d).weekday()
+            ]
+            for d in range(1, days_in_month + 1)
+        ],
+
+        # IMPORTANT:
+        # Used by HTML to correctly identify
+        # Saturday and Sunday.
+        day_info=day_info,
+
+        month=month,
+        year=year,
+        month_name=calendar.month_name[month],
+        month_names=month_names,
+        current_month_name=calendar.month_name[current_month],
+        current_year=current_year,
+        current_month=current_month,
+        current_day=current_day,
+    )
+
+
+@app.route("/fifth_oct_ver_two_admin/schedule_grid")
+@login_required
+@admin_required
+def firth_oct_ver_two_schedule_grid():
+
+    # =========================================================
+    # SELECTED MONTH / YEAR
+    # =========================================================
+
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+
+
+    # =========================================================
+    # MONTH DATES
+    # =========================================================
+
+    days_in_month = calendar.monthrange(year, month)[1]
+
+    start_date = date(year, month, 1)
+
+    end_date = date(year, month, days_in_month)
+
+
+    # =========================================================
+    # TODAY
+    # =========================================================
+
+    today = date.today()
+
+
+    # =========================================================
+    # DAY LABELS
+    # =========================================================
+
+    day_labels = [
+        calendar.day_abbr[
+            date(year, month, d).weekday()
+        ]
+        for d in range(1, days_in_month + 1)
+    ]
+
+
+    # =========================================================
+    # ATTENDANCE RECORDS
+    # =========================================================
+
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+
+
+    records_by_user_day = {
+        (r.user_id, r.date.day): r
+        for r in records
+    }
+
+
+    # =========================================================
+    # ALL STAFF
+    # =========================================================
+
+    all_users = Users.query.order_by(
+        func.lower(Users.staff_name)
+    ).all()
+
+
+    # =========================================================
+    # BUILD GRID
+    # =========================================================
+
+    rows = []
+
+
+    for u in all_users:
+
+        cells = []
+
+        o_count = 0
+
+        l_count = 0
+
+
+        for d in range(
+            1,
+            days_in_month + 1
+        ):
+
+            # Actual date represented by this cell
+            cell_date = date(
+                year,
+                month,
+                d
+            )
+
+
+            # Is this date in the past?
+            is_past = cell_date < today
+
+
+            # Find attendance record
+            rec = records_by_user_day.get(
+                (u.id, d)
+            )
+
+
+            # =================================================
+            # WORKED / PRESENT
+            # =================================================
+
+            if rec and rec.check_in_time:
+
+                cells.append({
+
+                    "day": d,
+
+                    "value": "P",
+
+                    "locked": True,
+
+                    "past": is_past
+
+                })
+
+
+            # =================================================
+            # LEAVE
+            # =================================================
+
+            elif rec and rec.status == "On Leave":
+
+                cells.append({
+
+                    "day": d,
+
+                    "value": "L",
+
+                    "locked": False,
+
+                    "past": is_past
+
+                })
+
+                l_count += 1
+
+
+            # =================================================
+            # OFF
+            # =================================================
+
+            elif rec and rec.status == "Off":
+
+                cells.append({
+
+                    "day": d,
+
+                    "value": "O",
+
+                    "locked": False,
+
+                    "past": is_past
+
+                })
+
+                o_count += 1
+
+
+            # =================================================
+            # EMPTY
+            # =================================================
+
+            else:
+
+                cells.append({
+
+                    "day": d,
+
+                    "value": "",
+
+                    "locked": False,
+
+                    "past": is_past
+
+                })
+
+
+        # =====================================================
+        # ADD STAFF ROW
+        # =====================================================
+
+        rows.append({
+
+            "id": u.id,
+
+            "name": u.staff_name,
+
+            "cells": cells,
+
+            "o_count": o_count,
+
+            "l_count": l_count
+
+        })
+
+
+    # =========================================================
+    # RENDER TEMPLATE
+    # =========================================================
+
+    return render_template(
+
+        "schedule_grid.html",
+
+        rows=rows,
+
+        day_range=range(
+            1,
+            days_in_month + 1
+        ),
+
+        day_labels=day_labels,
+
+        # IMPORTANT:
+        # These were commented out in your code.
+        # Your HTML needs them.
+
+        month=month,
+
+        year=year,
+
+        # Current date information
+
+        current_year=today.year,
+
+        current_month=today.month,
+
+        current_day=today.day,
+
+        # Month name for the selected grid
+
+        month_name=calendar.month_name[month]
+
+    )
+
+
+
+
+@app.route("/fifth_oct_admin/schedule_grid")
+@login_required
+@admin_required
+def fifth_oct_schedule_grid():
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_date = date(year, month, 1)
+    end_date = date(year, month, days_in_month)
+
+    day_labels = [
+        calendar.day_abbr[date(year, month, d).weekday()]
+        for d in range(1, days_in_month + 1)
+    ]
+
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+    records_by_user_day = {(r.user_id, r.date.day): r for r in records}
+
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+
+    rows = []
+    for u in all_users:
+        cells = []
+        o_count = l_count = 0
+        for d in range(1, days_in_month + 1):
+            rec = records_by_user_day.get((u.id, d))
+            if rec and rec.check_in_time:
+                cells.append({"day": d, "value": "P", "locked": True})
+            elif rec and rec.status == "On Leave":
+                cells.append({"day": d, "value": "L", "locked": False})
+                l_count += 1
+            elif rec and rec.status == "Off":
+                cells.append({"day": d, "value": "O", "locked": False})
+                o_count += 1
+            else:
+                cells.append({"day": d, "value": "", "locked": False})
+        rows.append({"id": u.id, "name": u.staff_name, "cells": cells, "o_count": o_count, "l_count": l_count})
+
+    today = date.today()
+    current_year = today.year
+    current_month = today.month
+    current_day = today.day
+    
+    return render_template(
+        "schedule_grid.html",
+        rows=rows,
+        day_range=range(1, days_in_month + 1),
+        day_labels=day_labels,
+        #month=month,
+        #year=year,
+        current_month_name=calendar.month_name[current_month],
+        current_year=current_year,
+        current_month=current_month,
+        current_day=current_day, 
+    )
+@app.route("/with_no_users_admin/schedule_grid")
+@login_required
+@admin_required
+def with_no_users_schedule_grid():
+    year = request.args.get("year", type=int) or date.today().year
+    month = request.args.get("month", type=int) or date.today().month
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_date = date(year, month, 1)
+    end_date = date(year, month, days_in_month)
+
+    day_labels = [
+        calendar.day_abbr[date(year, month, d).weekday()]
+        for d in range(1, days_in_month + 1)
+    ]
+
+    records = Attendance.query.filter(
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+    records_by_user_day = {(r.user_id, r.date.day): r for r in records}
+
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+
+    rows = []
+    for u in all_users:
+        cells = []
+        for d in range(1, days_in_month + 1):
+            rec = records_by_user_day.get((u.id, d))
+            if rec and rec.check_in_time:
+                cells.append({"day": d, "value": "P", "locked": True})
+            elif rec and rec.status == "On Leave":
+                cells.append({"day": d, "value": "L", "locked": False})
+            elif rec and rec.status == "Off":
+                cells.append({"day": d, "value": "O", "locked": False})
+            else:
+                cells.append({"day": d, "value": "", "locked": False})
+        rows.append({"id": u.id, "name": u.staff_name, "cells": cells})
+
+    return render_template(
+        "schedule_grid.html",
+        rows=rows,
+        day_range=range(1, days_in_month + 1),
+        day_labels=day_labels,
+        month=month,
+        year=year,
+        month_name=calendar.month_name[month]
+    )
+
+
+@app.route("/admin/save_schedule_grid", methods=["POST"])
+@login_required
+@admin_required
+def save_schedule_grid():
+    payload = request.get_json(silent=True) or {}
+    year = payload.get("year")
+    month = payload.get("month")
+    cells = payload.get("cells", [])  # [{user_id, day, value}], value in ("", "O", "L")
+
+    if not year or not month or not cells:
+        return jsonify({"error": "Missing year, month, or cell data."}), 400
+
+    updated = 0
+    cleared = 0
+    skipped = []
+
+    for cell in cells:
+        uid = cell.get("user_id")
+        day = cell.get("day")
+        value = cell.get("value", "")
+
+        try:
+            target_date = date(int(year), int(month), int(day))
+        except (ValueError, TypeError):
+            continue
+
+        existing = Attendance.query.filter_by(user_id=uid, date=target_date).first()
+
+        if value == "":
+            # Clear: only allowed if the existing row is a scheduled Off/Leave,
+            # not a real worked day — matches the unschedule endpoint's guard.
+            if existing and existing.status in ("Off", "On Leave") and existing.check_in_time is None:
+                db.session.delete(existing)
+                cleared += 1
+            continue
+
+        status_value = "On Leave" if value == "L" else "Off"
+
+        if existing:
+            if existing.check_in_time is not None:
+                user_obj = Users.query.get(uid)
+                skipped.append({
+                    "user": user_obj.staff_name if user_obj else f"User {uid}",
+                    "date": target_date.strftime("%Y-%m-%d"),
+                    "reason": "Already has a worked record — cannot overwrite."
+                })
+                continue
+            existing.status = status_value
+            existing.remarks = f"Set to {status_value} by {current_user.username} (grid)"
+            updated += 1
+        else:
+            record = Attendance(
+                user_id=uid,
+                date=target_date,
+                check_in_time=None,
+                check_out_time=None,
+                status=status_value,
+                remarks=f"Set to {status_value} by {current_user.username} (grid)"
+            )
+            db.session.add(record)
+            updated += 1
+
+    db.session.commit()
+
+    return jsonify({
+        "success": f"Saved {updated} day(s), cleared {cleared}.",
+        "updated": updated,
+        "cleared": cleared,
+        "skipped": skipped
+    })
+
+
 @app.route("/no_off_n_leaves_attendance_register")
 @login_required
 def no_off_n_leaves_attendance_register():

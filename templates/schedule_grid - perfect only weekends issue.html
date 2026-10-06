@@ -1,0 +1,1742 @@
+```html
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="container-fluid mt-4">
+
+  <!-- ========================================================= -->
+  <!-- PAGE HEADER -->
+  <!-- ========================================================= -->
+
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+
+    <h4 class="mb-0">
+      <i class="bi bi-grid-3x3-gap me-2"></i>
+      Set Offs &amp; Leaves — {{ month_name }} {{ year }}
+    </h4>
+
+    <!-- MONTH / YEAR -->
+    <form class="d-flex gap-2" method="get">
+
+      {% set month_names = [
+        'January','February','March','April','May','June',
+        'July','August','September','October','November','December'
+      ] %}
+
+      <select
+        name="month"
+        class="form-select form-select-sm"
+        style="width:auto;">
+
+        {% for m in range(1, 13) %}
+
+          <option
+            value="{{ m }}"
+            {% if m == month %}selected{% endif %}>
+
+            {{ month_names[m-1] }}
+
+          </option>
+
+        {% endfor %}
+
+      </select>
+
+      <input
+        type="number"
+        name="year"
+        value="{{ year }}"
+        class="form-control form-control-sm"
+        style="width:90px;">
+
+      <button
+        type="submit"
+        class="btn btn-sm btn-outline-secondary">
+
+        Go
+
+      </button>
+
+    </form>
+
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- INFORMATION -->
+  <!-- ========================================================= -->
+
+  <div class="alert alert-light border small py-2 mb-2">
+
+    <i class="bi bi-info-circle me-1"></i>
+
+    Click a cell to set
+    <strong>O</strong> (Off)
+    or
+    <strong>L</strong> (Leave).
+
+    Shaded cells show what's been set.
+
+    <strong>Past dates are locked.</strong>
+
+    Today and future dates can be edited.
+
+    Days already worked
+    (<span class="badge bg-success">P</span>)
+    are locked.
+
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- STAFF FILTER -->
+  <!-- ========================================================= -->
+
+  <div class="card mb-2">
+
+    <div class="card-body py-2">
+
+      <div class="d-flex align-items-center gap-2">
+
+        <label
+          class="form-label fw-semibold small mb-0 text-nowrap">
+
+          <i class="bi bi-people me-1"></i>
+          Staff:
+
+        </label>
+
+
+        <!-- STAFF DROPDOWN -->
+
+        <div class="dropdown flex-grow-1">
+
+          <button
+            class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start"
+            type="button"
+            id="staffDropdown"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+
+            All Staff Selected
+
+          </button>
+
+
+          <!-- DROPDOWN MENU -->
+
+          <div
+            class="dropdown-menu p-2 w-100"
+            id="staffDropdownMenu">
+
+            <!-- SEARCH -->
+
+            <div class="mb-2">
+
+              <input
+                type="text"
+                class="form-control form-control-sm"
+                id="gridStaffSearch"
+                placeholder="Search staff..."
+                autocomplete="off">
+
+            </div>
+
+
+            <!-- SELECT / CLEAR -->
+
+            <div class="d-flex gap-1 mb-2">
+
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary flex-fill"
+                id="gridSelectAllStaff">
+
+                Select All
+
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary flex-fill"
+                id="gridClearAllStaff">
+
+                Clear
+
+              </button>
+
+            </div>
+
+
+            <hr class="my-1">
+
+
+            <!-- STAFF CHECKBOXES -->
+
+            <div id="staffCheckboxList">
+
+              {% for row in rows %}
+
+                <div
+                  class="staff-checkbox-row"
+                  data-name="{{ row.name|lower }}">
+
+                  <label
+                    class="staff-option"
+                    for="gridStaff{{ row.id }}">
+
+                    <input
+                      type="checkbox"
+                      class="grid-staff-filter"
+                      value="{{ row.id }}"
+                      id="gridStaff{{ row.id }}"
+                      checked
+                      data-name="{{ row.name|lower }}">
+
+                    <span class="staff-name-label">
+                      {{ row.name }}
+                    </span>
+
+                  </label>
+
+                </div>
+
+              {% endfor %}
+
+            </div>
+
+
+            <!-- NO RESULTS -->
+
+            <div
+              id="gridNoStaffResults"
+              class="text-muted small text-center py-2 d-none">
+
+              No staff found.
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- SELECTED COUNT -->
+
+        <span
+          class="badge bg-secondary text-nowrap"
+          id="gridStaffCount">
+
+          {{ rows|length }} selected
+
+        </span>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- RESULT MESSAGE -->
+  <!-- ========================================================= -->
+
+  <div
+    id="gridResult"
+    class="mb-3">
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- SCHEDULE GRID -->
+  <!-- ========================================================= -->
+
+  <div class="table-responsive">
+
+    <table
+      class="register-table"
+      id="scheduleGridTable">
+
+      <thead>
+
+        <!-- ===================================================== -->
+        <!-- WEEKDAY HEADER -->
+        <!-- ===================================================== -->
+
+        <tr>
+
+          <th
+            class="sticky-col header-staff"
+            rowspan="2">
+
+            Staff Name
+
+          </th>
+
+          <th
+            class="header-count"
+            rowspan="2">
+
+            Off<br>(O)
+
+          </th>
+
+          <th
+            class="header-count"
+            rowspan="2">
+
+            Leave<br>(L)
+
+          </th>
+
+
+          {% for label in day_labels %}
+
+            {% set day_number = loop.index %}
+
+            <th
+              class="
+                day-header
+                {% if day_number % 7 == 6 %}
+                  saturday-header
+                {% elif day_number % 7 == 0 %}
+                  sunday-header
+                {% endif %}
+              ">
+
+              {{ label }}
+
+            </th>
+
+          {% endfor %}
+
+        </tr>
+
+
+        <!-- ===================================================== -->
+        <!-- DAY NUMBER HEADER -->
+        <!-- ===================================================== -->
+
+        <tr>
+
+          {% for d in day_range %}
+
+            {% set day_number = loop.index %}
+
+            <th
+              class="
+                date-header
+                {% if day_number % 7 == 6 %}
+                  saturday-header
+                {% elif day_number % 7 == 0 %}
+                  sunday-header
+                {% endif %}
+              ">
+
+              {{ d }}
+
+            </th>
+
+          {% endfor %}
+
+        </tr>
+
+      </thead>
+
+
+      <!-- ======================================================= -->
+      <!-- TABLE BODY -->
+      <!-- ======================================================= -->
+
+      <tbody>
+
+        {% for row in rows %}
+
+          <tr
+            class="grid-staff-row"
+            data-user-row="{{ row.id }}">
+
+            <!-- STAFF NAME -->
+
+            <td
+              class="sticky-col staff-name">
+
+              {{ row.name }}
+
+            </td>
+
+
+            <!-- OFF COUNT -->
+
+            <td
+              class="text-center fw-bold o-count"
+              data-user-id="{{ row.id }}">
+
+              {{ row.o_count }}
+
+            </td>
+
+
+            <!-- LEAVE COUNT -->
+
+            <td
+              class="text-center fw-bold l-count"
+              data-user-id="{{ row.id }}">
+
+              {{ row.l_count }}
+
+            </td>
+
+
+            <!-- DAILY CELLS -->
+
+            {% for cell in row.cells %}
+
+              {% set day_number = loop.index %}
+
+              <td
+                class="
+                  text-center
+                  p-0
+                  grid-td
+
+                  {% if day_number % 7 == 6 %}
+                    saturday-column
+                  {% elif day_number % 7 == 0 %}
+                    sunday-column
+                  {% endif %}
+                ">
+
+
+                <!-- WORKED / PRESENT -->
+
+                {% if cell.locked %}
+
+                  <span
+                    class="badge bg-success d-block">
+
+                    P
+
+                  </span>
+
+
+                <!-- EDITABLE CELL -->
+
+                {% else %}
+
+                  <select
+                    class="
+                      form-select
+                      form-select-sm
+                      grid-cell
+
+                      grid-cell-{{ cell.value|lower if cell.value else 'blank' }}
+                    "
+
+                    data-user-id="{{ row.id }}"
+
+                    data-day="{{ cell.day }}"
+
+                    data-previous-value="{{ cell.value or '' }}"
+
+                    {% if cell.past %}
+                      disabled
+                    {% endif %}>
+
+
+                    <!-- BLANK -->
+
+                    <option
+                      value=""
+                      {% if cell.value == '' %}
+                        selected
+                      {% endif %}>
+
+                    </option>
+
+
+                    <!-- OFF -->
+
+                    <option
+                      value="O"
+                      {% if cell.value == 'O' %}
+                        selected
+                      {% endif %}>
+
+                      O
+
+                    </option>
+
+
+                    <!-- LEAVE -->
+
+                    <option
+                      value="L"
+                      {% if cell.value == 'L' %}
+                        selected
+                      {% endif %}>
+
+                      L
+
+                    </option>
+
+                  </select>
+
+                {% endif %}
+
+              </td>
+
+            {% endfor %}
+
+          </tr>
+
+        {% endfor %}
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- POST BUTTON -->
+  <!-- ========================================================= -->
+
+  <div class="d-flex justify-content-end mt-3">
+
+    <button
+      type="button"
+      class="btn btn-primary"
+      id="postGridBtn">
+
+      <i class="bi bi-cloud-upload me-1"></i>
+
+      Post
+
+    </button>
+
+  </div>
+
+</div>
+
+
+<!-- ============================================================= -->
+<!-- CSS -->
+<!-- ============================================================= -->
+
+<style>
+
+/* ============================================================= */
+/* MAIN TABLE */
+/* ============================================================= */
+
+.register-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.78rem;
+}
+
+.register-table th,
+.register-table td {
+  border: 1px solid #ccc;
+  padding: 2px 3px;
+}
+
+
+/* ============================================================= */
+/* STICKY STAFF COLUMN */
+/* ============================================================= */
+
+.sticky-col {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  text-align: left;
+  min-width: 150px;
+  z-index: 1;
+}
+
+.register-table thead th {
+  position: sticky;
+  top: 0;
+  color: #fff;
+  z-index: 2;
+}
+
+.register-table thead .sticky-col {
+  z-index: 4;
+}
+
+
+/* ============================================================= */
+/* HEADER COLOURS */
+/* ============================================================= */
+
+/* Staff name header */
+
+.header-staff {
+  background-color: #212529 !important;
+}
+
+
+/* O / L count headers */
+
+.header-count {
+  background-color: #343a40 !important;
+}
+
+
+/* Normal weekday headers */
+
+.day-header,
+.date-header {
+  background-color: #495057 !important;
+  text-align: center;
+  font-weight: 700;
+}
+
+
+/* Saturday */
+
+.saturday-header {
+  background-color: #0d6efd !important;
+  color: #fff !important;
+}
+
+
+/* Sunday */
+
+.sunday-header {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+}
+
+
+/* ============================================================= */
+/* WEEKEND COLUMNS */
+/* ============================================================= */
+
+.saturday-column {
+  border-left: 2px solid #0d6efd !important;
+}
+
+.sunday-column {
+  border-left: 2px solid #dc3545 !important;
+}
+
+
+/* ============================================================= */
+/* GRID CELLS */
+/* ============================================================= */
+
+.grid-td {
+  min-width: 42px;
+}
+
+.grid-cell {
+  width: 100%;
+  border: none;
+  text-align: center;
+  font-size: 0.75rem;
+  padding: 3px 0;
+  background: transparent;
+  cursor: pointer;
+
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+
+/* ============================================================= */
+/* CELL COLORS */
+/* ============================================================= */
+
+.grid-cell-blank {
+  color: #adb5bd;
+}
+
+.grid-cell-o {
+  background-color: #e9ecef;
+  color: #495057;
+  font-weight: 700;
+}
+
+.grid-cell-l {
+  background-color: #fff3cd;
+  color: #664d03;
+  font-weight: 700;
+}
+
+
+/* ============================================================= */
+/* DISABLED / PAST CELLS */
+/* ============================================================= */
+
+.grid-cell:disabled {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.grid-cell-o:disabled {
+  background-color: #e9ecef;
+  color: #495057;
+  font-weight: 700;
+}
+
+.grid-cell-l:disabled {
+  background-color: #fff3cd;
+  color: #664d03;
+  font-weight: 700;
+}
+
+
+/* ============================================================= */
+/* COUNTERS */
+/* ============================================================= */
+
+.o-count {
+  color: #6c757d;
+}
+
+.l-count {
+  color: #fd7e14;
+}
+
+
+/* ============================================================= */
+/* STAFF DROPDOWN */
+/* ============================================================= */
+
+#staffDropdownMenu {
+  min-width: 280px;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+#staffCheckboxList {
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+
+/* ============================================================= */
+/* STAFF ROW */
+/* ============================================================= */
+
+.staff-checkbox-row {
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.staff-checkbox-row:hover {
+  background-color: #f8f9fa;
+}
+
+
+/* ============================================================= */
+/* STAFF OPTION */
+/* ============================================================= */
+
+.staff-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  cursor: pointer;
+  font-size: 0.80rem;
+  line-height: 1.4;
+  user-select: none;
+}
+
+
+/* ============================================================= */
+/* ACTUAL CHECKBOX */
+/* ============================================================= */
+
+.staff-option input[type="checkbox"] {
+
+  width: 17px;
+  height: 17px;
+
+  min-width: 17px;
+  min-height: 17px;
+
+  margin: 0;
+
+  padding: 0;
+
+  cursor: pointer;
+
+  accent-color: #0d6efd;
+
+  opacity: 1;
+
+  appearance: auto;
+  -webkit-appearance: checkbox;
+
+}
+
+
+/* ============================================================= */
+/* STAFF NAME */
+/* ============================================================= */
+
+.staff-name-label {
+  cursor: pointer;
+  flex: 1;
+}
+
+
+/* ============================================================= */
+/* STAFF COUNT */
+/* ============================================================= */
+
+#gridStaffCount {
+  font-size: 0.70rem;
+}
+
+
+/* ============================================================= */
+/* DROPDOWN BUTTON */
+/* ============================================================= */
+
+#staffDropdown {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ============================================================= */
+/* SEARCH */
+/* ============================================================= */
+
+#gridStaffSearch {
+  font-size: 0.78rem;
+}
+
+
+/* ============================================================= */
+/* NO RESULTS */
+/* ============================================================= */
+
+#gridNoStaffResults {
+  font-style: italic;
+}
+
+</style>
+
+
+<!-- ============================================================= -->
+<!-- JAVASCRIPT -->
+<!-- ============================================================= -->
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+
+  /* ============================================================ */
+  /* VARIABLES */
+  /* ============================================================ */
+
+  const resultEl =
+    document.getElementById("gridResult");
+
+
+  const year =
+    {{ year }};
+
+
+  const month =
+    {{ month }};
+
+
+  const postBtn =
+    document.getElementById("postGridBtn");
+
+
+  const staffSearch =
+    document.getElementById("gridStaffSearch");
+
+
+  const staffDropdownMenu =
+    document.getElementById("staffDropdownMenu");
+
+
+  const noStaffResults =
+    document.getElementById("gridNoStaffResults");
+
+
+  /* ============================================================ */
+  /* REMEMBER INITIAL SAVED VALUES */
+  /* ============================================================ */
+
+  document.querySelectorAll(".grid-cell")
+    .forEach(sel => {
+
+      sel.dataset.previousValue =
+        sel.value || "";
+
+    });
+
+
+  /* ============================================================ */
+  /* CELL COLORING + COUNT UPDATE */
+  /* ============================================================ */
+
+  document.querySelectorAll(".grid-cell")
+    .forEach(sel => {
+
+      sel.addEventListener(
+        "change",
+        function () {
+
+
+          /* ---------------------------------------------------- */
+          /* Old saved/current value                              */
+          /* ---------------------------------------------------- */
+
+          const oldValue =
+            sel.dataset.previousValue || "";
+
+
+          /* ---------------------------------------------------- */
+          /* New value                                            */
+          /* ---------------------------------------------------- */
+
+          const newValue =
+            sel.value;
+
+
+          /* ---------------------------------------------------- */
+          /* Update cell colour                                   */
+          /* ---------------------------------------------------- */
+
+          sel.classList.remove(
+            "grid-cell-o",
+            "grid-cell-l",
+            "grid-cell-blank"
+          );
+
+
+          sel.classList.add(
+
+            newValue
+
+              ? `grid-cell-${newValue.toLowerCase()}`
+
+              : "grid-cell-blank"
+
+          );
+
+
+          /* ---------------------------------------------------- */
+          /* Update row count                                    */
+          /* ---------------------------------------------------- */
+
+          updateRowCounts(
+            sel.dataset.userId,
+            oldValue,
+            newValue
+          );
+
+
+          /* ---------------------------------------------------- */
+          /* Remember new value                                  */
+          /* ---------------------------------------------------- */
+
+          sel.dataset.previousValue =
+            newValue;
+
+        }
+
+      );
+
+    });
+
+
+  /* ============================================================ */
+  /* UPDATE O / L COUNTS                                        */
+  /* ============================================================ */
+
+  function updateRowCounts(
+    userId,
+    oldValue,
+    newValue
+  ) {
+
+
+    const oEl =
+      document.querySelector(
+        `.o-count[data-user-id="${userId}"]`
+      );
+
+
+    const lEl =
+      document.querySelector(
+        `.l-count[data-user-id="${userId}"]`
+      );
+
+
+    if (!oEl || !lEl) {
+      return;
+    }
+
+
+    /* ---------------------------------------------------------- */
+    /* START WITH SAVED DATABASE COUNTS                           */
+    /* ---------------------------------------------------------- */
+
+    let o =
+      parseInt(
+        oEl.textContent,
+        10
+      ) || 0;
+
+
+    let l =
+      parseInt(
+        lEl.textContent,
+        10
+      ) || 0;
+
+
+    /* ---------------------------------------------------------- */
+    /* REMOVE OLD VALUE                                          */
+    /* ---------------------------------------------------------- */
+
+    if (oldValue === "O") {
+
+      o =
+        Math.max(
+          0,
+          o - 1
+        );
+
+    }
+
+
+    if (oldValue === "L") {
+
+      l =
+        Math.max(
+          0,
+          l - 1
+        );
+
+    }
+
+
+    /* ---------------------------------------------------------- */
+    /* ADD NEW VALUE                                              */
+    /* ---------------------------------------------------------- */
+
+    if (newValue === "O") {
+
+      o++;
+
+    }
+
+
+    if (newValue === "L") {
+
+      l++;
+
+    }
+
+
+    /* ---------------------------------------------------------- */
+    /* UPDATE DISPLAY                                             */
+    /* ---------------------------------------------------------- */
+
+    oEl.textContent =
+      o;
+
+
+    lEl.textContent =
+      l;
+
+  }
+
+
+  /* ============================================================ */
+  /* STAFF FILTER                                                */
+  /* ============================================================ */
+
+  function applyStaffFilter() {
+
+
+    const checkedIds =
+      new Set(
+
+        Array.from(
+          document.querySelectorAll(
+            ".grid-staff-filter:checked"
+          )
+        ).map(
+          cb => cb.value
+        )
+
+      );
+
+
+    document.querySelectorAll(
+      ".grid-staff-row"
+    ).forEach(row => {
+
+
+      row.style.display =
+
+        checkedIds.has(
+          row.dataset.userRow
+        )
+
+          ? ""
+
+          : "none";
+
+
+    });
+
+
+    updateStaffCount();
+
+  }
+
+
+  /* ============================================================ */
+  /* STAFF COUNT                                                 */
+  /* ============================================================ */
+
+  function updateStaffCount() {
+
+
+    const total =
+      document.querySelectorAll(
+        ".grid-staff-filter"
+      ).length;
+
+
+    const selected =
+      document.querySelectorAll(
+        ".grid-staff-filter:checked"
+      ).length;
+
+
+    const countEl =
+      document.getElementById(
+        "gridStaffCount"
+      );
+
+
+    if (countEl) {
+
+      countEl.textContent =
+        `${selected} selected`;
+
+    }
+
+
+    const dropdownBtn =
+      document.getElementById(
+        "staffDropdown"
+      );
+
+
+    if (!dropdownBtn) {
+      return;
+    }
+
+
+    if (selected === 0) {
+
+      dropdownBtn.textContent =
+        "No Staff Selected";
+
+    }
+
+    else if (selected === total) {
+
+      dropdownBtn.textContent =
+        "All Staff Selected";
+
+    }
+
+    else {
+
+      dropdownBtn.textContent =
+        `${selected} Staff Selected`;
+
+    }
+
+  }
+
+
+  /* ============================================================ */
+  /* INDIVIDUAL CHECKBOX                                         */
+  /* ============================================================ */
+
+  document.querySelectorAll(
+    ".grid-staff-filter"
+  ).forEach(cb => {
+
+
+    cb.addEventListener(
+      "change",
+      function () {
+
+        applyStaffFilter();
+
+      }
+
+    );
+
+  });
+
+
+  /* ============================================================ */
+  /* SELECT ALL                                                   */
+  /* ============================================================ */
+
+  const selectAllBtn =
+    document.getElementById(
+      "gridSelectAllStaff"
+    );
+
+
+  if (selectAllBtn) {
+
+
+    selectAllBtn.addEventListener(
+      "click",
+      function (e) {
+
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+
+        const searchTerm =
+          staffSearch.value
+            .trim()
+            .toLowerCase();
+
+
+        document.querySelectorAll(
+          ".staff-checkbox-row"
+        ).forEach(staffRow => {
+
+
+          const name =
+            staffRow.dataset.name || "";
+
+
+          if (
+            !searchTerm ||
+            name.includes(searchTerm)
+          ) {
+
+
+            const cb =
+              staffRow.querySelector(
+                ".grid-staff-filter"
+              );
+
+
+            if (cb) {
+
+              cb.checked =
+                true;
+
+            }
+
+          }
+
+        });
+
+
+        applyStaffFilter();
+
+      }
+
+    );
+
+  }
+
+
+  /* ============================================================ */
+  /* CLEAR ALL                                                    */
+  /* ============================================================ */
+
+  const clearAllBtn =
+    document.getElementById(
+      "gridClearAllStaff"
+    );
+
+
+  if (clearAllBtn) {
+
+
+    clearAllBtn.addEventListener(
+      "click",
+      function (e) {
+
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+
+        document.querySelectorAll(
+          ".grid-staff-filter"
+        ).forEach(cb => {
+
+          cb.checked =
+            false;
+
+        });
+
+
+        applyStaffFilter();
+
+      }
+
+    );
+
+  }
+
+
+  /* ============================================================ */
+  /* SEARCH STAFF                                                 */
+  /* ============================================================ */
+
+  if (staffSearch) {
+
+
+    staffSearch.addEventListener(
+      "input",
+      function (e) {
+
+
+        const term =
+          e.target.value
+            .trim()
+            .toLowerCase();
+
+
+        let visibleCount =
+          0;
+
+
+        document.querySelectorAll(
+          ".staff-checkbox-row"
+        ).forEach(staffRow => {
+
+
+          const name =
+            staffRow.dataset.name || "";
+
+
+          const matches =
+            name.includes(term);
+
+
+          staffRow.style.display =
+            matches
+              ? ""
+              : "none";
+
+
+          if (matches) {
+
+            visibleCount++;
+
+          }
+
+        });
+
+
+        if (noStaffResults) {
+
+
+          noStaffResults.classList.toggle(
+            "d-none",
+            visibleCount !== 0
+          );
+
+
+        }
+
+      }
+
+    );
+
+  }
+
+
+  /* ============================================================ */
+  /* KEEP DROPDOWN OPEN                                           */
+  /* ============================================================ */
+
+  if (staffDropdownMenu) {
+
+
+    staffDropdownMenu.addEventListener(
+      "click",
+      function (e) {
+
+        e.stopPropagation();
+
+      }
+
+    );
+
+  }
+
+
+  /* ============================================================ */
+  /* POST                                                         */
+  /* ============================================================ */
+
+  postBtn.addEventListener(
+    "click",
+    async function () {
+
+
+      /* -------------------------------------------------------- */
+      /* SELECTED STAFF                                           */
+      /* -------------------------------------------------------- */
+
+      const selectedUserIds =
+        new Set(
+
+          Array.from(
+            document.querySelectorAll(
+              ".grid-staff-filter:checked"
+            )
+          ).map(
+            cb => cb.value
+          )
+
+        );
+
+
+      /* -------------------------------------------------------- */
+      /* GET EDITABLE CELLS                                       */
+      /* -------------------------------------------------------- */
+
+      const cells =
+        Array.from(
+          document.querySelectorAll(
+            ".grid-cell"
+          )
+        )
+
+
+        .filter(
+          sel =>
+            selectedUserIds.has(
+              sel.dataset.userId
+            )
+        )
+
+
+        /*
+         * Past dates are disabled.
+         * Do not send them to the server.
+         */
+
+        .filter(
+          sel =>
+            !sel.disabled
+        )
+
+
+        .map(
+          sel => ({
+
+            user_id:
+              parseInt(
+                sel.dataset.userId
+              ),
+
+            day:
+              parseInt(
+                sel.dataset.day
+              ),
+
+            value:
+              sel.value
+
+          })
+
+        );
+
+
+      /* -------------------------------------------------------- */
+      /* NO STAFF                                                  */
+      /* -------------------------------------------------------- */
+
+      if (
+        selectedUserIds.size === 0
+      ) {
+
+
+        resultEl.innerHTML =
+
+          `<div
+             class="alert alert-warning py-2 mb-0">
+
+             No staff selected to update.
+
+           </div>`;
+
+
+        return;
+
+      }
+
+
+      /* -------------------------------------------------------- */
+      /* NO EDITABLE CELLS                                        */
+      /* -------------------------------------------------------- */
+
+      if (
+        cells.length === 0
+      ) {
+
+
+        resultEl.innerHTML =
+
+          `<div
+             class="alert alert-warning py-2 mb-0">
+
+             There are no editable dates to update.
+
+           </div>`;
+
+
+        return;
+
+      }
+
+
+      /* -------------------------------------------------------- */
+      /* SAVING                                                    */
+      /* -------------------------------------------------------- */
+
+      resultEl.innerHTML =
+
+        `<div class="text-muted">
+
+           <span
+             class="spinner-border spinner-border-sm me-2">
+           </span>
+
+           Saving...
+
+         </div>`;
+
+
+      postBtn.disabled =
+        true;
+
+
+      try {
+
+
+        const res =
+          await fetch(
+            "/admin/save_schedule_grid",
+            {
+
+              method:
+                "POST",
+
+
+              headers: {
+
+                "Content-Type":
+                  "application/json"
+
+              },
+
+
+              body:
+                JSON.stringify({
+
+                  year,
+
+                  month,
+
+                  cells
+
+                })
+
+            }
+
+          );
+
+
+        const data =
+          await res.json();
+
+
+        /* ------------------------------------------------------ */
+        /* ERROR                                                  */
+        /* ------------------------------------------------------ */
+
+        if (!res.ok) {
+
+
+          resultEl.innerHTML =
+
+            `<div
+               class="alert alert-danger py-2 mb-0">
+
+               ${
+                 data.error ||
+                 "Failed to save."
+               }
+
+             </div>`;
+
+
+          postBtn.disabled =
+            false;
+
+
+          return;
+
+        }
+
+
+        /* ------------------------------------------------------ */
+        /* SUCCESS                                                */
+        /* ------------------------------------------------------ */
+
+        let html =
+
+          `<div
+             class="alert alert-success py-2 mb-2">
+
+             ${
+               data.success ||
+               "Schedule saved successfully."
+             }
+
+           </div>`;
+
+
+        /* ------------------------------------------------------ */
+        /* SKIPPED WORKED DAYS                                   */
+        /* ------------------------------------------------------ */
+
+        if (
+          data.skipped &&
+          data.skipped.length > 0
+        ) {
+
+
+          html +=
+
+            `<div class="small text-muted">
+
+               Skipped
+               ${data.skipped.length}
+               (already worked):
+
+             </div>
+
+
+             <ul class="small">
+
+               ${
+                 data.skipped
+                   .slice(0, 10)
+                   .map(
+                     s =>
+
+                       `<li>
+
+                          ${s.user} —
+                          ${s.date}:
+                          ${s.reason}
+
+                        </li>`
+
+                   )
+                   .join("")
+               }
+
+             </ul>`;
+
+        }
+
+
+        resultEl.innerHTML =
+          html;
+
+
+      }
+
+
+      /* -------------------------------------------------------- */
+      /* SERVER ERROR                                             */
+      /* -------------------------------------------------------- */
+
+      catch (err) {
+
+
+        console.error(err);
+
+
+        resultEl.innerHTML =
+
+          `<div
+             class="alert alert-danger py-2 mb-0">
+
+             Server error:
+             ${err.message}
+
+           </div>`;
+
+
+      }
+
+
+      finally {
+
+        postBtn.disabled =
+          false;
+
+      }
+
+    }
+
+  );
+
+
+  /* ============================================================ */
+  /* INITIAL STATE                                                */
+  /* ============================================================ */
+
+  applyStaffFilter();
+
+  updateStaffCount();
+
+
+});
+
+</script>
+
+
+{% endblock %}
+```

@@ -92,17 +92,11 @@
           </div>
         </div>
 
-    
-<div class="btn-toolbar gap-2">
-
+        <div class="btn-toolbar gap-2">
           {% include "_schedule_days_modal.html" %}
-          <!--button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#scheduleDaysModal">
-           <i class="bi bi-calendar-plus me-1"></i> Set Offs &amp; Leaves
-          </button-->
-
-<a href="{{ url_for('schedule_grid') }}" class="btn btn-outline-primary btn-sm">
-  <i class="bi bi-grid-3x3-gap me-1"></i> Set Offs &amp; Leaves
-</a>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#scheduleDaysModal">
+            <i class="bi bi-calendar-plus me-1"></i> Set Offs &amp; Leaves
+          </button>
 
           <a href="{{ url_for('attendance_register') }}" class="btn btn-primary btn-sm" id="attendanceregister">
             <i class="bi bi-file-earmark-text me-1"></i> Staff Register
@@ -599,6 +593,190 @@ document.addEventListener("DOMContentLoaded", function() {
       else if (Array.from(outletCheckboxes).every(c => c.checked)) selectAllOutlets.checked = true;
     });
   });
+});
+</script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const modalEl = document.getElementById("scheduleDaysModal");
+  document.body.appendChild(modalEl); // escape any ancestor stacking context
+  const scheduleModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  const resultEl = document.getElementById("scheduleResult");
+  const searchInput = document.getElementById("staffSearchInput");
+  const unscheduleSection = document.getElementById("unscheduleSection");
+  const scheduledDaysList = document.getElementById("scheduledDaysList");
+  const confirmUnscheduleBtn = document.getElementById("confirmUnscheduleBtn");
+
+  const datePicker = flatpickr("#scheduleDatesInput", {
+    mode: "multiple",
+    dateFormat: "Y-m-d",
+    minDate: "today",
+    locale: { firstDayOfWeek: 1 }
+  });
+
+  document.getElementById("selectAllStaff").addEventListener("click", () => {
+    document.querySelectorAll(".staff-checkbox").forEach(cb => {
+      if (cb.closest(".form-check").style.display !== "none") cb.checked = true;
+    });
+  });
+
+  document.getElementById("clearAllStaff").addEventListener("click", () => {
+    document.querySelectorAll(".staff-checkbox").forEach(cb => cb.checked = false);
+  });
+
+  searchInput.addEventListener("input", () => {
+    const term = searchInput.value.trim().toLowerCase();
+    document.querySelectorAll(".staff-checkbox").forEach(cb => {
+      const match = cb.dataset.name.includes(term);
+      cb.closest(".form-check").style.display = match ? "" : "none";
+    });
+  });
+
+  // --- Schedule ---
+  document.getElementById("submitScheduleBtn").addEventListener("click", async () => {
+    const selectedDates = datePicker.selectedDates.map(d => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    });
+    const type = document.querySelector('input[name="scheduleType"]:checked').value;
+    const userIds = Array.from(document.querySelectorAll(".staff-checkbox:checked")).map(cb => parseInt(cb.value));
+
+    if (selectedDates.length === 0) {
+      resultEl.innerHTML = `<div class="alert alert-warning py-2 mb-0">Please select at least one date.</div>`;
+      return;
+    }
+    if (userIds.length === 0) {
+      resultEl.innerHTML = `<div class="alert alert-warning py-2 mb-0">Please select at least one staff member.</div>`;
+      return;
+    }
+
+    resultEl.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Scheduling...</div>`;
+
+    try {
+      const res = await fetch("/admin/schedule_days", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_ids: userIds, dates: selectedDates, type })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">${data.error || "Failed to schedule."}</div>`;
+        return;
+      }
+
+      let html = `<div class="alert alert-success py-2 mb-2">${data.success}</div>`;
+      if (data.skipped && data.skipped.length > 0) {
+        html += `<div class="small text-muted">Skipped ${data.skipped.length} (already had a record):</div>
+          <ul class="small">
+            ${data.skipped.slice(0, 10).map(s => `<li>${s.user} — ${s.date}: ${s.reason}</li>`).join("")}
+          </ul>`;
+        if (data.skipped.length > 10) {
+          html += `<div class="small text-muted">...and ${data.skipped.length - 10} more.</div>`;
+        }
+      }
+      resultEl.innerHTML = html;
+    } catch (err) {
+      console.error(err);
+      resultEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">Server error: ${err.message}</div>`;
+    }
+  });
+
+  // --- UnSchedule: load scheduled days for selected staff ---
+  document.getElementById("submitUnScheduleBtn").addEventListener("click", async () => {
+    const userIds = Array.from(document.querySelectorAll(".staff-checkbox:checked")).map(cb => parseInt(cb.value));
+
+    if (userIds.length === 0) {
+      resultEl.innerHTML = `<div class="alert alert-warning py-2 mb-0">Please select at least one staff member first.</div>`;
+      return;
+    }
+
+    unscheduleSection.classList.remove("d-none");
+    scheduledDaysList.innerHTML = `<div class="text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>`;
+    confirmUnscheduleBtn.classList.add("d-none");
+    resultEl.innerHTML = "";
+
+    try {
+      const res = await fetch("/admin/scheduled_days_list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_ids: userIds })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        scheduledDaysList.innerHTML = `<div class="text-danger small">${data.error || "Failed to load."}</div>`;
+        return;
+      }
+
+      if (data.length === 0) {
+        scheduledDaysList.innerHTML = `<div class="text-muted small">No scheduled Off/Leave days found for the selected staff.</div>`;
+        return;
+      }
+
+      scheduledDaysList.innerHTML = data.map(r => `
+        <div class="form-check">
+          <input class="form-check-input scheduled-day-checkbox" type="checkbox" value="${r.id}" id="sched${r.id}" checked>
+          <label class="form-check-label" for="sched${r.id}">
+            <strong>${r.user_name}</strong> — ${r.date}
+            <span class="badge ${r.status === 'Off' ? 'bg-secondary' : 'bg-warning text-dark'}">${r.status}</span>
+          </label>
+        </div>
+      `).join("");
+
+      confirmUnscheduleBtn.classList.remove("d-none");
+    } catch (err) {
+      console.error(err);
+      scheduledDaysList.innerHTML = `<div class="text-danger small">Server error: ${err.message}</div>`;
+    }
+  });
+
+  document.getElementById("selectAllScheduled").addEventListener("click", () => {
+    document.querySelectorAll(".scheduled-day-checkbox").forEach(cb => cb.checked = true);
+  });
+
+  document.getElementById("clearAllScheduled").addEventListener("click", () => {
+    document.querySelectorAll(".scheduled-day-checkbox").forEach(cb => cb.checked = false);
+  });
+
+  confirmUnscheduleBtn.addEventListener("click", async () => {
+    const recordIds = Array.from(document.querySelectorAll(".scheduled-day-checkbox:checked")).map(cb => parseInt(cb.value));
+
+    if (recordIds.length === 0) {
+      resultEl.innerHTML = `<div class="alert alert-warning py-2 mb-0">Select at least one day to remove.</div>`;
+      return;
+    }
+
+    if (!confirm(`Remove ${recordIds.length} scheduled day(s)? This cannot be undone.`)) return;
+
+    resultEl.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Removing...</div>`;
+
+    try {
+      const res = await fetch("/admin/unschedule_days", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_ids: recordIds })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">${data.error || "Failed to remove."}</div>`;
+        return;
+      }
+
+      resultEl.innerHTML = `<div class="alert alert-success py-2 mb-0">${data.success}</div>`;
+      unscheduleSection.classList.add("d-none");
+      confirmUnscheduleBtn.classList.add("d-none");
+    } catch (err) {
+      console.error(err);
+      resultEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">Server error: ${err.message}</div>`;
+    }
+  });
+
 });
 </script>
 

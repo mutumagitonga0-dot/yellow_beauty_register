@@ -1,0 +1,246 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid mt-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="bi bi-grid-3x3-gap me-2"></i>Set Offs &amp; Leaves — {{ month_name }} {{ year }}</h4>
+    <form class="d-flex gap-2" method="get">
+      {% set month_names = ['January','February','March','April','May','June',
+                             'July','August','September','October','November','December'] %}
+      <select name="month" class="form-select form-select-sm" style="width:auto">
+        {% for m in range(1, 13) %}
+          <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ month_names[m-1] }}</option>
+        {% endfor %}
+      </select>
+      <input type="number" name="year" value="{{ year }}" class="form-control form-control-sm" style="width:90px">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Go</button>
+    </form>
+  </div>
+
+  <div class="alert alert-light border small mb-3">
+    <i class="bi bi-info-circle me-1"></i>
+    Click a cell to set <strong>O</strong> (Off) or <strong>L</strong> (Leave). Shaded cells show what's been set.
+    Days already worked (<span class="badge bg-success">P</span>) are locked.
+  </div>
+
+  <!-- Staff filter -->
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="form-label fw-semibold mb-0"><i class="bi bi-people me-1"></i> Staff to Display</label>
+        <div>
+          <input type="text" class="form-control form-control-sm d-inline-block w-auto me-2" id="gridStaffSearch" placeholder="Search staff...">
+          <button type="button" class="btn btn-sm btn-link" id="gridSelectAllStaff">Select All</button>
+          <button type="button" class="btn btn-sm btn-link" id="gridClearAllStaff">Clear</button>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-2" id="gridStaffFilterList" style="max-height: 120px; overflow-y: auto;">
+        {% for row in rows %}
+          <div class="form-check form-check-inline border rounded px-2 py-1 m-0">
+            <input class="form-check-input grid-staff-filter" type="checkbox" value="{{ row.id }}" id="gridStaff{{ row.id }}" checked data-name="{{ row.name|lower }}">
+            <label class="form-check-label small" for="gridStaff{{ row.id }}">{{ row.name }}</label>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div id="gridResult" class="mb-3"></div>
+
+  <div class="table-responsive">
+    <table class="register-table" id="scheduleGridTable">
+      <thead>
+        <tr>
+          <th class="sticky-col" rowspan="2">Staff Name</th>
+          <th rowspan="2">Off<br>(O)</th>
+          <th rowspan="2">Leave<br>(L)</th>
+          {% for label in day_labels %}
+            <th class="{{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ label }}</th>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for d in day_range %}
+            <th class="{{ 'week-end' if loop.index % 7 == 0 else '' }}">{{ d }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="grid-staff-row" data-user-row="{{ row.id }}">
+          <td class="sticky-col staff-name">{{ row.name }}</td>
+          <td class="text-center fw-bold o-count" data-user-id="{{ row.id }}">{{ row.o_count }}</td>
+          <td class="text-center fw-bold l-count" data-user-id="{{ row.id }}">{{ row.l_count }}</td>
+          {% for cell in row.cells %}
+            <td class="text-center p-0 grid-td {{ 'week-end' if loop.index % 7 == 0 else '' }}">
+              {% if cell.locked %}
+                <span class="badge bg-success d-block">P</span>
+              {% else %}
+                <select class="form-select form-select-sm grid-cell grid-cell-{{ cell.value|lower if cell.value else 'blank' }}"
+                        data-user-id="{{ row.id }}" data-day="{{ cell.day }}">
+                  <option value="" {{ 'selected' if cell.value == '' else '' }}></option>
+                  <option value="O" {{ 'selected' if cell.value == 'O' else '' }}>O</option>
+                  <option value="L" {{ 'selected' if cell.value == 'L' else '' }}>L</option>
+                </select>
+              {% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-end mt-3">
+    <button type="button" class="btn btn-primary" id="postGridBtn">
+      <i class="bi bi-cloud-upload me-1"></i> Post
+    </button>
+  </div>
+
+</div>
+
+<style>
+  .register-table { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
+  .register-table th, .register-table td { border: 1px solid #ccc; padding: 2px 3px; }
+  .sticky-col { position: sticky; left: 0; background: #fff; text-align: left; min-width: 150px; z-index: 1; }
+  .register-table thead th { background: #212529; color: #fff; position: sticky; top: 0; z-index: 2; }
+  .week-end { border-right: 2px solid #495057; }
+
+  /* Cell dropdown styling — minimal when blank, shaded when set */
+  .grid-td { min-width: 42px; }
+  .grid-cell {
+    width: 100%;
+    border: none;
+    text-align: center;
+    font-size: 0.75rem;
+    padding: 3px 0;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .grid-cell-blank { color: #adb5bd; }
+  .grid-cell-o { background-color: #e9ecef; color: #495057; font-weight: 700; }
+  .grid-cell-l { background-color: #fff3cd; color: #664d03; font-weight: 700; }
+
+  .o-count { color: #6c757d; }
+  .l-count { color: #fd7e14; }
+
+  #gridStaffFilterList .form-check { background: #f8f9fa; }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const resultEl = document.getElementById("gridResult");
+  const year = {{ year }};
+  const month = {{ month }};
+
+  // --- Cell coloring + live O/L count on change ---
+  document.querySelectorAll(".grid-cell").forEach(sel => {
+    sel.addEventListener("change", () => {
+      sel.classList.remove("grid-cell-o", "grid-cell-l", "grid-cell-blank");
+      sel.classList.add(sel.value ? `grid-cell-${sel.value.toLowerCase()}` : "grid-cell-blank");
+      updateRowCounts(sel.dataset.userId);
+    });
+  });
+
+  function updateRowCounts(userId) {
+    const rowCells = document.querySelectorAll(`.grid-cell[data-user-id="${userId}"]`);
+    let o = 0, l = 0;
+    rowCells.forEach(cell => {
+      if (cell.value === "O") o++;
+      if (cell.value === "L") l++;
+    });
+    const oEl = document.querySelector(`.o-count[data-user-id="${userId}"]`);
+    const lEl = document.querySelector(`.l-count[data-user-id="${userId}"]`);
+    if (oEl) oEl.textContent = o;
+    if (lEl) lEl.textContent = l;
+  }
+
+  // --- Staff filter: show/hide rows ---
+  function applyStaffFilter() {
+    const checkedIds = new Set(
+      Array.from(document.querySelectorAll(".grid-staff-filter:checked")).map(cb => cb.value)
+    );
+    document.querySelectorAll(".grid-staff-row").forEach(row => {
+      row.style.display = checkedIds.has(row.dataset.userRow) ? "" : "none";
+    });
+  }
+
+  document.querySelectorAll(".grid-staff-filter").forEach(cb => {
+    cb.addEventListener("change", applyStaffFilter);
+  });
+
+  document.getElementById("gridSelectAllStaff").addEventListener("click", () => {
+    document.querySelectorAll(".grid-staff-filter").forEach(cb => {
+      if (cb.closest(".form-check-inline").style.display !== "none") cb.checked = true;
+    });
+    applyStaffFilter();
+  });
+
+  document.getElementById("gridClearAllStaff").addEventListener("click", () => {
+    document.querySelectorAll(".grid-staff-filter").forEach(cb => cb.checked = false);
+    applyStaffFilter();
+  });
+
+  document.getElementById("gridStaffSearch").addEventListener("input", (e) => {
+    const term = e.target.value.trim().toLowerCase();
+    document.querySelectorAll(".grid-staff-filter").forEach(cb => {
+      const match = cb.dataset.name.includes(term);
+      cb.closest(".form-check-inline").style.display = match ? "" : "none";
+    });
+  });
+
+  // --- Post: only submit cells for visible (filtered-in) staff ---
+  document.getElementById("postGridBtn").addEventListener("click", async () => {
+    const visibleUserIds = new Set(
+      Array.from(document.querySelectorAll(".grid-staff-row"))
+        .filter(row => row.style.display !== "none")
+        .map(row => row.dataset.userRow)
+    );
+
+    const cells = Array.from(document.querySelectorAll(".grid-cell"))
+      .filter(sel => visibleUserIds.has(sel.dataset.userId))
+      .map(sel => ({
+        user_id: parseInt(sel.dataset.userId),
+        day: parseInt(sel.dataset.day),
+        value: sel.value
+      }));
+
+    if (cells.length === 0) {
+      resultEl.innerHTML = `<div class="alert alert-warning py-2 mb-0">No staff selected to update.</div>`;
+      return;
+    }
+
+    resultEl.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</div>`;
+
+    try {
+      const res = await fetch("/admin/save_schedule_grid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, month, cells })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">${data.error || "Failed to save."}</div>`;
+        return;
+      }
+
+      let html = `<div class="alert alert-success py-2 mb-2">${data.success}</div>`;
+      if (data.skipped && data.skipped.length > 0) {
+        html += `<div class="small text-muted">Skipped ${data.skipped.length} (already worked):</div>
+          <ul class="small">
+            ${data.skipped.slice(0, 10).map(s => `<li>${s.user} — ${s.date}: ${s.reason}</li>`).join("")}
+          </ul>`;
+      }
+      resultEl.innerHTML = html;
+    } catch (err) {
+      console.error(err);
+      resultEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">Server error: ${err.message}</div>`;
+    }
+  });
+});
+</script>
+
+
+{% endblock %}
