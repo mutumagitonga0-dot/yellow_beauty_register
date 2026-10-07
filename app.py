@@ -1057,9 +1057,15 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
     if not user_lat or not user_lon:
         return False, {"error": "Location required"}, None, None, None, None, None
 
+    #last_record = Attendance.query.filter_by(user_id=current_user.id)\
+    #                              .order_by(Attendance.id.desc())\
+    #                              .first()
+
     last_record = Attendance.query.filter_by(user_id=current_user.id)\
-                                  .order_by(Attendance.id.desc())\
-                                  .first()
+        .filter(Attendance.status.not_in(['On Leave', 'Off']))\
+        .order_by(Attendance.id.desc())\
+        .first()
+                               
 
     today_record = Attendance.query.filter_by(
         user_id=current_user.id,
