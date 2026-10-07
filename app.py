@@ -1365,7 +1365,8 @@ def outdated_forth_oct_verify_clock_action(action, outlet_id=None, confirmed=Fal
 def clock_in():
     payload = request.get_json(silent=True) or {}
     confirmed = payload.get("confirmed", False)
-    outlet_id = payload.get("outlet_id")  # None if frontend doesn't send one — falls back to auto-resolve
+    outlet_id = None
+    #outlet_id = payload.get("outlet_id")  # None if frontend doesn't send one — falls back to auto-resolve
 
     ok, response_data, distance, user_lat, user_lon, outletname, last_record = verify_clock_action(
         "clockin", outlet_id=outlet_id, confirmed=confirmed
