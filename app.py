@@ -1079,7 +1079,7 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
                          f"Contact Admin Muchemi if this is incorrect."
             }, None, None, None, None, today_record
 
-        if last_record and last_record.check_out_time is None and last_record.status.not_in(['On Leave', 'Off']):
+        if last_record and last_record.check_out_time is None and last_record.status not in(['On Leave', 'Off']):
             if last_record.date == date.today():
                 return False, {
                     "error": f"You are already clocked in at {last_record.outlet_name} "
@@ -1149,10 +1149,10 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
                             f"Contact Admin Muchemi if this is incorrect."
             }, None, None, None, None, today_record
         
-        if not last_record or last_record.check_out_time is not None:
+        if not last_record or last_record.check_out_time is not None and last_record.status not in(['On Leave', 'Off']):
             return False, {"error": "You are not currently clocked in."}, None, None, None, None, last_record
         
-        if last_record.date != date.today() and current_user.role != 1 and last_record.status.not_in(['On Leave', 'Off']):
+        if last_record.date != date.today() and current_user.role != 1 and last_record.status not in(['On Leave', 'Off']):
             return False, {
                 "error": f"You have an unclosed session from {last_record.date} "
                          f"at {last_record.outlet_name}. Please contact Admin Muchemi "
@@ -1192,7 +1192,7 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
                         f"You cannot clock in or out."
             }, None, float(user_lat), float(user_lon), None, today_record
 
-        if last_record and last_record.check_out_time is None and last_record.status.not_in(['On Leave', 'Off']):
+        if last_record and last_record.check_out_time is None and last_record.status not in(['On Leave', 'Off']):
             return False, {
                 "error": f"You are already clocked in at {last_record.outlet_name} "
                         f"since {format_local_time(last_record.check_in_time)}"
@@ -1207,7 +1207,7 @@ def verify_clock_action(action, outlet_id=None, confirmed=False):
                         f"There is no clock-out to perform."
             }, None, float(user_lat), float(user_lon), None, today_record
 
-        if last_record and last_record.check_out_time is None and last_record.status.not_in(['On Leave', 'Off']):
+        if last_record and last_record.check_out_time is None and last_record.status not in(['On Leave', 'Off']):
             return False, {
                 "error": f"You have a pending clock-out at {last_record.outlet_name} "
                         f"since {format_local_time(last_record.check_in_time)}"
