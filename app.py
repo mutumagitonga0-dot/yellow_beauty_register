@@ -3284,7 +3284,8 @@ def outlets_details(metric):
     elif metric == "force_closure":
         records = Attendance.query.filter(
             Attendance.check_out_time.is_(None),
-            Attendance.check_in_time < today
+            Attendance.check_in_time < today,
+            Attendance.status not in(['On Leave', 'Off'])
         ).all()
 
         return jsonify([{
@@ -3298,7 +3299,8 @@ def outlets_details(metric):
         records = Attendance.query.filter(
             Attendance.date == today,
             Attendance.check_in_time.isnot(None),
-            Attendance.check_out_time.is_(None)
+            Attendance.check_out_time.is_(None),
+            Attendance.status not in(['On Leave', 'Off'])
         ).all()
 
         return jsonify([{
