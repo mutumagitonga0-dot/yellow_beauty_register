@@ -4227,6 +4227,7 @@ def manage_users():
                 return jsonify({"error": f"Request declined, User '{name}' already exists!"}), 400
 
             hashed_pw = generate_password_hash(plain_password, method="pbkdf2:sha256")
+            #print(f"password for name {name} 'is' {hashed_pw}")
             #hashed_pw = generate_password_hash(plain_password)
             new_user = Users(
                 staff_name=name,
@@ -4242,55 +4243,156 @@ def manage_users():
 
         elif action == "update":
             user_id = request.form.get("username")
-            new_name = request.form.get("new_name").upper()
+            new_name = (request.form.get("new_name") or "").strip().upper()
+            new_password = (request.form.get("password") or "").strip()
+
             user = Users.query.get(user_id)
 
             if not user:
-                return jsonify({"error": "Request declined, User not found"}), 404
+                return jsonify({
+                    "error": "Request declined, User not found"
+                }), 404
 
             if not new_name:
-                new_name = user.username
+                new_name = user.staff_name
 
-            # Update user fields
+            # Update user details
             user.staff_name = new_name
             user.username = new_name
             user.is_active = bool(request.form.get("active"))
             user.role = request.form.get("roles")
             user.privileges = request.form.get("privileges")
 
-            selected_outlet_ids = [int(oid) for oid in request.form.getlist("all_outlet_ids")]
-            primary_outlet_ids = [int(oid) for oid in request.form.getlist("rep_outlet_ids")]
+            # Update password only when a new password is supplied
+            if new_password:
+                user.password_hash = generate_password_hash(new_password)
 
-            # Clear existing assignments
-            AssignedOutlet.query.filter_by(user_id=user.id).delete()
+            # Get selected outlets
+            selected_outlet_ids = [
+                int(oid)
+                for oid in request.form.getlist("all_outlet_ids")
+            ]
 
-            force_reallocate = request.form.get("force_reallocate") == "true"
+            primary_outlet_ids = [
+                int(oid)
+                for oid in request.form.getlist("rep_outlet_ids")
+            ]
 
-            # Conflict check unless forced
+            force_reallocate = (
+                request.form.get("force_reallocate") == "true"
+            )
+
+            # Check for primary outlet conflicts BEFORE deleting assignments
             if not force_reallocate:
                 for oid in primary_outlet_ids:
                     conflict = AssignedOutlet.query.filter(
                         AssignedOutlet.primary_outlet_id == oid,
                         AssignedOutlet.user_id != user.id
                     ).first()
+
                     if conflict:
                         other_user = Users.query.get(conflict.user_id)
+
                         return jsonify({
                             "error": (
-                                f"⚠️ Request declined. Outlet ID {oid} is already primarily allocated "
-                                f"to user '{other_user.staff_name}'. Do you want to re-allocate?"
+                                f"⚠️ Request declined. Outlet ID {oid} is already "
+                                f"primarily allocated to user "
+                                f"'{other_user.staff_name}'. "
+                                f"Do you want to re-allocate?"
                             )
                         }), 400
 
-            # Add new assignments
+            # Clear existing assignments after conflict checks pass
+            AssignedOutlet.query.filter_by(
+                user_id=user.id
+            ).delete()
+
+            # Add the new outlet assignments
             for oid in selected_outlet_ids:
                 if oid in primary_outlet_ids:
-                    db.session.add(AssignedOutlet(user_id=user.id, outlet_id=oid, primary_outlet_id=oid))
+                    db.session.add(
+                        AssignedOutlet(
+                            user_id=user.id,
+                            outlet_id=oid,
+                            primary_outlet_id=oid
+                        )
+                    )
                 else:
-                    db.session.add(AssignedOutlet(user_id=user.id, outlet_id=oid))
+                    db.session.add(
+                        AssignedOutlet(
+                            user_id=user.id,
+                            outlet_id=oid
+                        )
+                    )
 
-            db.session.commit()
-            return jsonify({"success": f"User '{new_name}' successfully updated!"})
+            # Save all changes
+            try:
+                db.session.commit()
+
+                return jsonify({
+                    "success": f"User '{new_name}' successfully updated!"
+                })
+
+            except Exception:
+                db.session.rollback()
+                app.logger.exception("Failed to update staff user")
+
+                return jsonify({
+                    "error": "Unable to update user. No changes were saved."
+                }), 500
+        
+
+        #elif action == "update":
+        #    user_id = request.form.get("username")
+        #    new_name = request.form.get("new_name").upper()
+        #    user = Users.query.get(user_id)
+
+        #    if not user:
+        #        return jsonify({"error": "Request declined, User not found"}), 404
+
+        #    if not new_name:
+        #        new_name = user.username
+
+            # Update user fields
+        #    user.staff_name = new_name
+        #    user.username = new_name
+        #    user.is_active = bool(request.form.get("active"))
+        #    user.role = request.form.get("roles")
+        #    user.privileges = request.form.get("privileges")
+
+        #    selected_outlet_ids = [int(oid) for oid in request.form.getlist("all_outlet_ids")]
+        #    primary_outlet_ids = [int(oid) for oid in request.form.getlist("rep_outlet_ids")]
+
+            # Clear existing assignments
+        #    AssignedOutlet.query.filter_by(user_id=user.id).delete()
+
+        #    force_reallocate = request.form.get("force_reallocate") == "true"
+
+            # Conflict check unless forced
+        #    if not force_reallocate:
+        #        for oid in primary_outlet_ids:
+        #            conflict = AssignedOutlet.query.filter(
+        #                AssignedOutlet.primary_outlet_id == oid,
+        #                AssignedOutlet.user_id != user.id
+        #            ).first()
+        #            if conflict:
+        #                other_user = Users.query.get(conflict.user_id)
+        #                return jsonify({
+        #                    "error": (
+        #                        f"⚠️ Request declined. Outlet ID {oid} is already primarily allocated "
+        #                        f"to user '{other_user.staff_name}'. Do you want to re-allocate?"
+        #                    )
+        #                }), 400
+
+            # Add new assignments
+        #    for oid in selected_outlet_ids:
+        #        if oid in primary_outlet_ids:
+        #            db.session.add(AssignedOutlet(user_id=user.id, outlet_id=oid, primary_outlet_id=oid))
+        #        else:
+        #            db.session.add(AssignedOutlet(user_id=user.id, outlet_id=oid))
+
+        #    db.session.commit()
+        #    return jsonify({"success": f"User '{new_name}' successfully updated!"})*/
 
 
         elif action == "delete":
