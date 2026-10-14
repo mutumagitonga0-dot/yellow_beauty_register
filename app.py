@@ -2348,8 +2348,10 @@ def save_schedule_grid():
             record = Attendance(
                 user_id=uid,
                 date=target_date,
-                check_in_time=datetime.now(timezone.utc).replace(second=0, microsecond=0),
-                check_out_time = datetime.now(timezone.utc).replace(second=0, microsecond=0),
+                check_in_time=None,
+                check_out_time=None,
+                #check_in_time=datetime.now(timezone.utc).replace(second=0, microsecond=0),
+                #check_out_time = datetime.now(timezone.utc).replace(second=0, microsecond=0),
                 status=status_value,
                 remarks=f"Set to {status_value} by {current_user.username} (grid)"
             )
