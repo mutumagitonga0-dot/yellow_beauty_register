@@ -44,10 +44,10 @@ if not db_url:
   db_url = (
       "mssql+pyodbc:///?odbc_connect="
       "DRIVER={ODBC Driver 17 for SQL Server};"
-      "SERVER=TOSHIBA\\SQLEXP2014;"
+      "SERVER=EMG\\SQLEXPRESS;"
       "DATABASE=YbeautyRegister;"
       "UID=sa;"
-      "PWD=CMos@2019"
+      "PWD=Evamg@2026"
   )
 
 # Fix Render’s default prefix if needed
@@ -887,27 +887,6 @@ def dashboard():
         .count()
     )
 
-    clocked_out_today = (
-        db.session.query(Attendance.user_id, Attendance.outlet_id)
-        .filter(
-            Attendance.date == today,
-            Attendance.check_out_time.isnot(None)
-        )
-        .distinct()
-        .count()
-    )
-
-    pending_clockouts = (
-        db.session.query(Attendance.user_id, Attendance.outlet_id)
-        .filter(
-            Attendance.date == today,
-            Attendance.check_in_time.isnot(None),
-            Attendance.check_out_time.is_(None)
-        )
-        .distinct()
-        .count()
-    )
-
     unattended_today = Outlet.query.filter(
         not_(
             exists().where(
@@ -918,15 +897,90 @@ def dashboard():
         )
     ).count()
 
-    force_closure_waiting = (
+    #today_record = Attendance.query.filter_by(
+    #    user_id=current_user.id,
+    #    date=date.today()
+    #).first()
+
+
+    #if today_record and today_record.status in ("Off", "On Leave"):
+
+    #clocked_out_today = (
+    #    db.session.query(Attendance.user_id, Attendance.outlet_id)
+    #    .filter(
+    #        Attendance.date == today,
+    #        Attendance.check_out_time.isnot(None),
+    #        Attendance.status not in ("Off", "On Leave")
+    #    )
+    #    .distinct()
+    #    .count()
+    #)
+    #pending_clockouts = (
+    #    db.session.query(Attendance.user_id, Attendance.outlet_id)
+    #    .filter(
+    #        Attendance.date == today,
+    #        Attendance.check_in_time.isnot(None),
+    #        Attendance.check_out_time.is_(None),
+    #        Attendance.status not in ("Off", "On Leave")
+    #    )
+    #    .distinct()
+    #    .count()
+    #)
+    #force_closure_waiting = (
+    #    db.session.query(Attendance.user_id, Attendance.outlet_id)
+    #    .filter(
+    #        Attendance.check_out_time.is_(None),
+    #        Attendance.check_in_time < today,
+    #        Attendance.status not in ("Off", "On Leave")
+    #    )
+    #    .distinct()
+    #    .count()
+    #)
+
+
+    # 1. Clocked out today
+    subq_clocked_out = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_out_time.isnot(None),
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()  # Crucial for SQL Server compatibility
+    )
+    clocked_out_today = db.session.query(db.func.count()).select_from(subq_clocked_out).scalar()
+
+
+    # 2. Pending clockouts
+    subq_pending = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None),
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()
+    )
+    pending_clockouts = db.session.query(db.func.count()).select_from(subq_pending).scalar()
+
+
+    # 3. Force closure waiting
+    subq_force = (
         db.session.query(Attendance.user_id, Attendance.outlet_id)
         .filter(
             Attendance.check_out_time.is_(None),
-            Attendance.check_in_time < today
+            Attendance.check_in_time < today,
+            Attendance.status.notin_(["Off", "On Leave"])
         )
         .distinct()
-        .count()
+        .subquery()
     )
+    force_closure_waiting = db.session.query(db.func.count()).select_from(subq_force).scalar()
+
+
 
     # --- Existing outlet assignment logic ---
     outlets, unclosed_clockin_event_outlet_id = get_current_user_outlets(user_id=user_id)

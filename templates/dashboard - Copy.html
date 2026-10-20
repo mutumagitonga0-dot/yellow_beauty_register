@@ -1,0 +1,418 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Attendance Banner -->
+<header class="header flex-column align-items-start mb-3">
+  <div class="d-flex justify-content-between align-items-center w-100 mb-3">
+    <div class="text-center w-100">
+      <h1 class="mb-1 text-warning">Employee Attendance Register</h1>
+      <h2 class="mb-1">Welcome, {{ current_user.username }}</h2>
+      <p id="clock" class="fw-bold text-secondary"></p>
+      <p id="attached_outlet" class="fw-bold text-secondary">
+        Assigned Outlet: {{ outletname }}
+      </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <!-- Theme toggle -->
+      <button id="themeToggle" class="btn btn-sm btn-outline-dark" aria-label="Toggle theme">
+        <i class="fa-solid fa-moon"></i>
+      </button>
+      <!-- Logout -->
+      <a href="/logout" class="btn btn-logout" aria-label="Logout">
+        <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- Dashboard Content -->
+<main class="grid-container">
+  <!-- Row 1 -->
+  <div class="row">
+    <section class="card checkin">
+      <h2>🕒 Check In</h2>
+      <button id="clockInBtn" onclick="clockInBtn()">Clock In</button>
+      <p id="checkinStatus"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...</p>
+    </section>
+
+    <section class="card checkout">
+      <h2>🔄 Check Out</h2>
+      <button id="clockOutBtn" onclick="clockOut()">Clock Out</button>
+      <p id="checkoutStatus"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...</p>
+    </section>
+  </div>
+
+  <!-- Row 2 -->
+  <div class="row">
+    <section class="card summary">
+      <h2>📊 Today’s Summary</h2>
+      <p id="summaryText">Loading...</p>
+    </section>
+
+    <section class="card notifications">
+      <h2>🔔 Notifications</h2>
+      <ul id="notificationsList"><li>No alerts</li></ul>
+    </section>
+  </div>
+</main>
+
+<script>
+  // Live clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleString();
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Theme toggle
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('bg-dark');
+    document.body.classList.toggle('text-white');
+  });
+
+  // Utility: show busy cursor + disable buttons
+  function setBusy(state) {
+    document.body.style.cursor = state ? "wait" : "default";
+    document.getElementById("clockInBtn").disabled = state;
+    document.getElementById("clockOutBtn").disabled = state;
+  }
+
+  async function loadSummary() {
+    try {
+      const response = await fetch("/summary");
+      const data = await response.json();
+      let summaryHtml = `
+        <div><strong>Clock-in:</strong> ${data.clock_in}</div>
+        <div><strong>Clock-out:</strong> ${data.clock_out}</div>
+        <div><strong>Work hours:</strong> ${data.work_hours}</div>
+        <div><strong>Clock-in Counts:</strong> ${data.clock_in_count}</div>
+        <div><strong>Outlet:</strong> ${data.outlet || "None"}</div>
+      `;
+      document.getElementById("summaryText").innerHTML = summaryHtml;
+    } catch (err) {
+      document.getElementById("summaryText").innerText = "Error loading summary.";
+      console.error(err);
+    }
+  }
+
+
+function presserve_checkLoginOnLoad() {
+  setBusy(true);
+  document.getElementById('checkinStatus').innerHTML =
+    '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+
+  // Primary: GPS/Wi-Fi geolocation
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // Success: got coordinates
+      sendLocation(pos.coords.latitude, pos.coords.longitude);
+    },
+    err => {
+      // GPS failed → fallback to IP-based location
+      document.getElementById('checkinStatus').textContent =
+        "⚠️ GPS error: " + err.message + " → trying IP location...";
+
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+          if (data.latitude && data.longitude) {
+            sendLocation(data.latitude, data.longitude);
+            document.getElementById('checkinStatus').textContent =
+              "Using approximate IP location";
+          } else {
+            document.getElementById('checkinStatus').textContent =
+              "⚠️ Location unavailable";
+          }
+        })
+        .catch(() => {
+          document.getElementById('checkinStatus').textContent =
+            "⚠️ Location lookup failed";
+        })
+        .finally(() => setBusy(false));
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+// Helper: send coordinates to backend
+function preserve_sendLocation(lat, lon) {
+  fetch("/check_active_login_existence", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latitude: lat, longitude: lon })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('checkinStatus').textContent =
+      data.success || data.error;
+  })
+  .catch(err => {
+    document.getElementById('checkinStatus').textContent =
+      "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+
+
+
+// Generic helper: tries GPS, falls back to IP, then sends to backend
+function getLocationAndSend(endpoint, statusElementId) {
+  setBusy(true);
+  const statusEl = document.getElementById(statusElementId);
+  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // GPS success
+      sendToBackend(endpoint, statusElementId, pos.coords.latitude, pos.coords.longitude);
+    },
+    err => {
+      // GPS failed → fallback to IP
+      statusEl.textContent = "⚠️ GPS error: " + err.message + " → trying IP location...";
+
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+          if (data.latitude && data.longitude) {
+            sendToBackend(endpoint, statusElementId, data.latitude, data.longitude);
+            statusEl.textContent = "Using approximate IP location";
+          } else {
+            statusEl.textContent = "⚠️ Location unavailable";
+            setBusy(false);
+          }
+        })
+        .catch(() => {
+          statusEl.textContent = "⚠️ Location lookup failed";
+          setBusy(false);
+        });
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+// Generic backend sender
+// Generic backend sender
+function sendToBackend(endpoint, statusElementId, lat, lon) {
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latitude: lat, longitude: lon })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById(statusElementId).textContent = data.success || data.error;
+
+    // Reload dashboard if clock-in or clock-out succeeded
+    if ((endpoint === "/clockin" || endpoint === "/clockout") && data.success) {
+      // If you have a dashboard route:
+      window.location.href = "/dashboard";
+      // Or if you're already on the dashboard and just want refresh:
+      // window.location.reload();
+    }
+  })
+  .catch(err => {
+    document.getElementById(statusElementId).textContent = "⚠️ Server error: " + err.message;
+  })
+  .finally(() => setBusy(false));
+}
+
+
+function checkLoginOnLoad() {
+  getLocationAndSend("/check_active_login_existence", "checkinStatus");
+}
+
+function clockInBtn() {
+  getLocationAndSend("/clockin", "checkinStatus");
+}
+
+function clockOut() {
+  getLocationAndSend("/clockout", "checkoutStatus");
+}
+
+
+function alertLastcheckoutOnLoad() {
+  getLocationAndSend("/alert_user_last_clockout", "checkoutStatus");
+}
+
+
+  function hold_this_option_2_checkLoginOnLoad() {
+    setBusy(true);
+    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(
+  pos => {
+    fetch("/check_active_login_existence", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('checkinStatus').textContent = data.success || data.error;
+    })
+    .finally(() => setBusy(false));
+  },
+  err => {
+    document.getElementById('checkinStatus').textContent = "⚠️ Location error: " + err.message;
+    setBusy(false);
+  },
+  { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+);
+
+  }
+
+
+function Hold_on_this_checkLoginOnLoad() {
+    setBusy(true);
+    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/check_active_login_existence", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkinStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  function original_alertLastcheckoutOnLoad() {
+    setBusy(true);
+    document.getElementById('checkoutStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/alert_user_last_clockout", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkoutStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  function original_clockInBtn() {
+    setBusy(true);
+    document.getElementById('checkinStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/clockin", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkinStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  function original_clockOut() {
+    setBusy(true);
+    document.getElementById('checkoutStatus').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-warning"></i> Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      fetch("/clockout", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        })
+      }).then(res => res.json()).then(data => {
+        document.getElementById('checkoutStatus').textContent = data.success || data.error;
+      }).finally(() => setBusy(false));
+    });
+  }
+
+  // ✅ Trigger all on page load
+  document.addEventListener("DOMContentLoaded", function() {
+    loadSummary();
+    checkLoginOnLoad();
+    alertLastcheckoutOnLoad();
+  });
+</script>
+
+<style>
+body {
+  background: url("{{ url_for('static', filename='images/ybeauty_dashboard.png') }}") 
+              no-repeat center center fixed;
+  background-size: cover;
+  font-family: "Segoe UI", sans-serif;
+  color: #222;
+  margin: 0;
+  padding: 0;
+}
+
+.header {
+  text-align: center;
+  padding: 0px;
+  background: rgba(255,255,102);
+  border-bottom: 5px solid #0078D4;
+}
+
+.grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  margin: 40px auto;
+  width: 90%;
+  max-width: 1000px;
+}
+
+.summary h2 { color: #28A745; }
+.notifications h2 { color: #FF9800; }
+.notifications ul { list-style: none; padding: 0; }
+.notifications li { margin: 5px 0; }
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.card {
+  flex: 1;
+  background: rgba(255,204,255);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  padding: 20px;
+  text-align: center;
+}
+
+.card h2 {
+  color: #0078D4;
+}
+
+button {
+  background-color: #0078D4;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+button:disabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+button:hover:enabled {
+  background-color: #005A9E;
+}
+</style>
+
+{% endblock %}
