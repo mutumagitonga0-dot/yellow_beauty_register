@@ -855,9 +855,144 @@ def returning_id_get_current_user_outlet():
     user_outlet = "None"
    return (user_outlet)    
 
+
 @app.route("/dashboard", methods=["GET", "POST"])
 @login_required
 def dashboard():
+    user_id = current_user.id
+    user = Users.query.get(user_id)
+    if not user:
+        return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
+
+    today = date.today()
+
+    # ==========================================
+    # --- 1. OUTLET SUMMARY METRICS (EXISTING) ---
+    # ==========================================
+    total_outlets = Outlet.query.count()
+
+    clocked_in_today = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None)
+        )
+        .distinct()
+        .count()
+    )
+
+    unattended_today = Outlet.query.filter(
+        not_(
+            exists().where(
+                (Attendance.outlet_id == Outlet.outlet_id) &
+                (Attendance.date == today) &
+                (Attendance.check_in_time.isnot(None))
+            )
+        )
+    ).count()
+
+    subq_clocked_out = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_out_time.isnot(None),
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()
+    )
+    clocked_out_today = db.session.query(db.func.count()).select_from(subq_clocked_out).scalar()
+
+    subq_pending = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None),
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()
+    )
+    pending_clockouts = db.session.query(db.func.count()).select_from(subq_pending).scalar()
+
+    subq_force = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.check_out_time.is_(None),
+            Attendance.check_in_time < today,
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()
+    )
+    force_closure_waiting = db.session.query(db.func.count()).select_from(subq_force).scalar()
+
+
+    # ==========================================
+    # --- 2. STAFF SUMMARY METRICS (NEW ENGINE) ---
+    # ==========================================
+    all_users = Users.query.all()
+    total_staff = len(all_users)
+    
+    today_records = Attendance.query.filter(Attendance.date == today).all()
+    today_records_by_user = {r.user_id: r for r in today_records}
+    
+    # Initialize counting variables matching HTML layout hooks
+    staff_clocked_in_today = 0
+    staff_on_offday = 0
+    staff_on_leave = 0
+    staff_absent = 0
+
+    for u in all_users:
+        rec = today_records_by_user.get(u.id)
+        
+        status_clean = str(rec.status).strip().lower() if (rec and rec.status) else ""
+        has_checked_in = True if (rec and rec.check_in_time is not None) else False
+
+        if has_checked_in:
+            staff_clocked_in_today += 1
+        elif status_clean == "off":
+            staff_on_offday += 1
+        elif "leave" in status_clean:
+            staff_on_leave += 1
+        else:
+            staff_absent += 1
+
+
+    # ==========================================
+    # --- 3. EXISTING USER ACTIONS & RENDER ---
+    # ==========================================
+    outlets, unclosed_clockin_event_outlet_id = get_current_user_outlets(user_id=user_id)
+    primary_outlet = next((o for o in outlets if o.get("is_primary")), None)
+    activelyassighedoutlet = next((o for o in outlets if o.get("unclosed_clockin_event")), None)
+
+    return render_template(
+        "dashboard.html",
+        defaultoutletname=primary_outlet["outletname"] if primary_outlet else None,
+        activelyassignedoutletname=activelyassighedoutlet["outletname"] if activelyassighedoutlet else None,
+        assignedoutlets=outlets,
+        
+        # Outlet payload metrics
+        total_outlets=total_outlets,
+        clocked_in_today=clocked_in_today,
+        clocked_out_today=clocked_out_today,
+        pending_clockouts=pending_clockouts,
+        unattended_today=unattended_today,
+        force_closure_waiting=force_closure_waiting,
+        
+        # Staff payload metrics (Passed dynamically downstream)
+        total_staff=total_staff,
+        staff_clocked_in_today=staff_clocked_in_today,
+        staff_on_offday=staff_on_offday,
+        staff_on_leave=staff_on_leave,
+        staff_absent=staff_absent
+    )
+
+
+@app.route("/with_no_staff_dashboard", methods=["GET", "POST"])
+@login_required
+def with_no_staff_dashboard():
 
     #Attendance.query.filter(
     #Attendance.remarks.ilike("%Force clock-out%"),

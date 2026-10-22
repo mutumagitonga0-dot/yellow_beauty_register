@@ -190,42 +190,50 @@
 
 
 
-<section class="card shadow-sm border-0 compact-card">
-  <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pb-0">
-    <h2 class="fs-5 mb-0 d-flex align-items-center gap-2">
-      <i class="bi bi-people-fill text-primary"></i> Staff Insights
-    </h2>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-sm rounded-pill">
-      <i class="bi bi-arrow-clockwise me-1"></i> Refresh Grid
+<section class="card compact-card">
+  <h2 class="fs-5 mb-2">👥 Staff Summary
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary" id="refresh_staff_activities">
+      <i class="bi bi-file-earmark-text me-1"></i> Refresh Grid
     </a>
-  </div>
-
-  <div class="card-body px-0 pt-2">
-    <ul class="list-group list-group-flush">
-      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-        <span>Total Registered Staff</span>
-        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="all_staff">View</button>
-      </li>
-      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-        <span>Clocked In Today</span>
-        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_clocked_in">View</button>
-      </li>
-      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-        <span>On Off-Day</span>
-        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_offday">View</button>
-      </li>
-      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-        <span>On Leave</span>
-        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_on_leave">View</button>
-      </li>
-      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-        <span>Absent Today</span>
-        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_absent">View</button>
-      </li>
-    </ul>
-  </div>
+  </h2>
+  
+  <ul class="list-group list-group-flush">
+    <!-- Total Registered Staff -->
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Total Registered Staff
+      <span class="badge bg-primary rounded-pill">{{ total_staff }}</span>
+      <button class="btn btn-link btn-sm btn-staff-trigger" data-staff-metric="all_staff">View</button>
+    </li>
+    
+    <!-- Clocked In Today -->
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Clocked In Today
+      <span class="badge bg-success rounded-pill">{{ staff_clocked_in_today }}</span>
+      <button class="btn btn-link btn-sm btn-staff-trigger" data-staff-metric="staff_clocked_in">View</button>
+    </li>
+    
+    <!-- On Off-Day -->
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      On Off-Day
+      <span class="badge bg-warning text-dark rounded-pill">{{ staff_on_offday }}</span>
+      <button class="btn btn-link btn-sm btn-staff-trigger" data-staff-metric="staff_offday">View</button>
+    </li>
+    
+    <!-- On Leave -->
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      On Leave
+      <span class="badge bg-info text-dark rounded-pill">{{ staff_on_leave }}</span>
+      <button class="btn btn-link btn-sm btn-staff-trigger" data-staff-metric="staff_on_leave">View</button>
+    </li>
+    
+    <!-- Absent Today -->
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      Absent Today
+      <span class="badge bg-danger rounded-pill">{{ staff_absent }}</span>
+      <button class="btn btn-link btn-sm btn-staff-trigger" data-staff-metric="staff_absent">View</button>
+    </li>
+  </ul>
 </section>
-
 
 
 {% endif %}
@@ -1078,6 +1086,7 @@ async function forceClose(attendanceId, rowElement) {
     alert("Failed to close record securely");
   }
 }
+
 
 
 </script>
