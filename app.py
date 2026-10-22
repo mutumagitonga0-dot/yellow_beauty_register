@@ -855,10 +855,246 @@ def returning_id_get_current_user_outlet():
     user_outlet = "None"
    return (user_outlet)    
 
-
 @app.route("/dashboard", methods=["GET", "POST"])
 @login_required
 def dashboard():
+
+    #Attendance.query.filter(
+    #Attendance.remarks.ilike("%Force clock-out%"),
+    #Attendance.force_closed == False
+    #).update({"force_closed": True}, synchronize_session=False)
+    #db.session.commit()
+
+    user_id = current_user.id
+    user = Users.query.get(user_id)
+    if not user:
+        return jsonify({"status": "error", "message": "⚠️ Request declined, user not found."}), 400
+
+    
+    # --- Outlet summary metrics ---
+    today = date.today()
+
+    total_outlets = Outlet.query.count()
+
+    clocked_in_today = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None)
+        )
+        .distinct()
+        .count()
+    )
+
+    unattended_today = Outlet.query.filter(
+        not_(
+            exists().where(
+                (Attendance.outlet_id == Outlet.outlet_id) &
+                (Attendance.date == today) &
+                (Attendance.check_in_time.isnot(None))
+            )
+        )
+    ).count()
+
+    #today_record = Attendance.query.filter_by(
+    #    user_id=current_user.id,
+    #    date=date.today()
+    #).first()
+
+
+    #if today_record and today_record.status in ("Off", "On Leave"):
+
+    #clocked_out_today = (
+    #    db.session.query(Attendance.user_id, Attendance.outlet_id)
+    #    .filter(
+    #        Attendance.date == today,
+    #        Attendance.check_out_time.isnot(None),
+    #        Attendance.status not in ("Off", "On Leave")
+    #    )
+    #    .distinct()
+    #    .count()
+    #)
+    #pending_clockouts = (
+    #    db.session.query(Attendance.user_id, Attendance.outlet_id)
+    #    .filter(
+    #        Attendance.date == today,
+    #        Attendance.check_in_time.isnot(None),
+    #        Attendance.check_out_time.is_(None),
+    #        Attendance.status not in ("Off", "On Leave")
+    #    )
+    #    .distinct()
+    #    .count()
+    #)
+    #force_closure_waiting = (
+    #    db.session.query(Attendance.user_id, Attendance.outlet_id)
+    #    .filter(
+    #        Attendance.check_out_time.is_(None),
+    #        Attendance.check_in_time < today,
+    #        Attendance.status not in ("Off", "On Leave")
+    #    )
+    #    .distinct()
+    #    .count()
+    #)
+
+
+    # 1. Clocked out today
+    subq_clocked_out = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_out_time.isnot(None),
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()  # Crucial for SQL Server compatibility
+    )
+    clocked_out_today = db.session.query(db.func.count()).select_from(subq_clocked_out).scalar()
+
+
+    # 2. Pending clockouts
+    subq_pending = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.date == today,
+            Attendance.check_in_time.isnot(None),
+            Attendance.check_out_time.is_(None),
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()
+    )
+    pending_clockouts = db.session.query(db.func.count()).select_from(subq_pending).scalar()
+
+
+    # 3. Force closure waiting
+    subq_force = (
+        db.session.query(Attendance.user_id, Attendance.outlet_id)
+        .filter(
+            Attendance.check_out_time.is_(None),
+            Attendance.check_in_time < today,
+            Attendance.status.notin_(["Off", "On Leave"])
+        )
+        .distinct()
+        .subquery()
+    )
+    force_closure_waiting = db.session.query(db.func.count()).select_from(subq_force).scalar()
+
+
+
+    # --- Existing outlet assignment logic ---
+    outlets, unclosed_clockin_event_outlet_id = get_current_user_outlets(user_id=user_id)
+
+    primary_outlet = next((o for o in outlets if o.get("is_primary")), None)
+    activelyassighedoutlet = next((o for o in outlets if o.get("unclosed_clockin_event")), None)
+
+    return render_template(
+        "dashboard.html",
+        defaultoutletname=primary_outlet["outletname"] if primary_outlet else None,
+        activelyassignedoutletname=activelyassighedoutlet["outletname"] if activelyassighedoutlet else None,
+        assignedoutlets=outlets,
+        # Pass summary metrics to template
+        total_outlets=total_outlets,
+        clocked_in_today=clocked_in_today,
+        clocked_out_today=clocked_out_today,
+        pending_clockouts=pending_clockouts,
+        unattended_today=unattended_today,
+        force_closure_waiting=force_closure_waiting
+    )
+
+
+#from flask import jsonify, request
+#from datetime import date
+
+@app.route("/api/staff_metrics")
+@login_required
+def api_staff_metrics():
+    metric = request.args.get("metric")
+    today = date.today()
+    
+    # 1. Fetch data safely
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+    today_records = Attendance.query.filter(Attendance.date == today).all()
+    today_records_by_user = {r.user_id: r for r in today_records}
+    
+    filtered_users = []
+
+    for u in all_users:
+        rec = today_records_by_user.get(u.id)
+        
+        # Normalize status string values defensively
+        status_clean = str(rec.status).strip().lower() if (rec and rec.status) else ""
+        has_checked_in = True if (rec and rec.check_in_time is not None) else False
+
+        is_match = False
+        
+        if metric == "all_staff":
+            is_match = True
+        elif metric == "staff_clocked_in" and has_checked_in:
+            is_match = True
+        elif metric == "staff_offday" and status_clean == "off" and not has_checked_in:
+            is_match = True
+        elif metric == "staff_on_leave" and "leave" in status_clean and not has_checked_in:
+            is_match = True
+        elif metric == "staff_absent":
+            if not rec or (not has_checked_in and status_clean not in ["off", "on leave", "leave"]):
+                is_match = True
+
+        if is_match:
+            # Map database keys clearly to standard strings
+            filtered_users.append({
+                "id": int(u.id),
+                "name": str(u.staff_name),
+                "role": str(getattr(u, 'role', 'Staff Member'))
+            })
+            
+    print(f"DEBUG BACKEND: Metric [{metric}] found {len(filtered_users)} staff members.")
+    return jsonify(filtered_users)
+
+
+@app.route("/delete_after_api/staff_metrics")
+@login_required
+def delete_after_api_staff_metrics():
+    metric = request.args.get("metric")
+    today = date.today()
+    
+    
+
+    all_users = Users.query.order_by(func.lower(Users.staff_name)).all()
+    today_records = Attendance.query.filter(Attendance.date == today).all()
+    today_records_by_user = {r.user_id: r for r in today_records}
+    
+    filtered_users = []
+
+    for u in all_users:
+        rec = today_records_by_user.get(u.id)
+        
+        # Match criteria conditions precisely to layout logic
+        is_match = False
+        if metric == "all_staff":
+            is_match = True
+        elif metric == "staff_clocked_in" and rec and rec.check_in_time:
+            is_match = True
+        elif metric == "staff_offday" and rec and rec.status == "Off" and not rec.check_in_time:
+            is_match = True
+        elif metric == "staff_on_leave" and rec and rec.status == "On Leave" and not rec.check_in_time:
+            is_match = True
+        elif metric == "staff_absent" and (not rec or (rec.status not in ["Off", "On Leave"] and not rec.check_in_time)):
+            is_match = True
+        if is_match:
+            filtered_users.append({
+                "id": u.id,
+                "name": u.staff_name,
+                "role": getattr(u, 'role', 'Staff')  # Adjust dynamically if you have a role field
+            })
+            
+    return jsonify(filtered_users)
+
+
+
+
+@app.route("/twenty_second_oct_dashboard", methods=["GET", "POST"])
+@login_required
+def twenty_second_oct_dashboard():
 
     #Attendance.query.filter(
     #Attendance.remarks.ilike("%Force clock-out%"),

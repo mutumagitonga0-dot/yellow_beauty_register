@@ -138,7 +138,6 @@
   </ul>
 </section>
 
-
 <!-- Modal for drill-down -->
 <div class="modal fade" id="outletModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-top">
@@ -157,11 +156,88 @@
   </div>
 </div>
 
+<!-- Standalone Staff Detail Modal View Container -->
+<div class="modal fade" id="staffMetricModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-top">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+          <i class="bi bi-people-fill text-primary"></i> 
+          <span id="staffModalTitleText">Staff Details</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="staffDisplayTable">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width: 60px;" class="ps-3">#</th>
+                <th>Employee Name</th>
+                <th>Role Designation</th>
+                <th class="text-end pe-4" style="width: 160px;">Action Ledger</th>
+              </tr>
+            </thead>
+            <tbody id="staffTableBodyContainer">
+              <!-- Destination injection target for JavaScript row strings -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<section class="card shadow-sm border-0 compact-card">
+  <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pb-0">
+    <h2 class="fs-5 mb-0 d-flex align-items-center gap-2">
+      <i class="bi bi-people-fill text-primary"></i> Staff Insights
+    </h2>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-sm rounded-pill">
+      <i class="bi bi-arrow-clockwise me-1"></i> Refresh Grid
+    </a>
+  </div>
+
+  <div class="card-body px-0 pt-2">
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+        <span>Total Registered Staff</span>
+        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="all_staff">View</button>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+        <span>Clocked In Today</span>
+        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_clocked_in">View</button>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+        <span>On Off-Day</span>
+        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_offday">View</button>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+        <span>On Leave</span>
+        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_on_leave">View</button>
+      </li>
+      <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+        <span>Absent Today</span>
+        <button class="btn btn-link btn-sm btn-staff-trigger text-decoration-none" data-staff-metric="staff_absent">View</button>
+      </li>
+    </ul>
+  </div>
+</section>
+
+
 
 {% endif %}
 
 
 </div>
+
+
+
+
+
+
 
 
 <!--table class="table">
@@ -258,7 +334,7 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script-->
 
-<script>
+<!--script>
 document.addEventListener("DOMContentLoaded", function() {
 
 const modalEl = document.getElementById("outletModal");
@@ -306,7 +382,7 @@ async function forceClose(attendanceId, rowElement) {
   }
 }
 
-</script>
+</script-->
 
 
 <script>
@@ -746,6 +822,265 @@ function forceClockOut(userId) {
 }
 </script>
 
+
+<!--script>
+document.addEventListener("DOMContentLoaded", function () {
+  const staffModal = new bootstrap.Modal(document.getElementById('staffMetricModal'));
+  const modalTitleText = document.getElementById('modalTitleText');
+  const modalLoader = document.getElementById('modalLoader');
+  const modalStaffList = document.getElementById('modalStaffList');
+
+  // Titles mapping based on data-metric attribute
+  const metricTitles = {
+    'all_staff': 'All Registered Staff',
+    'staff_clocked_in': 'Staff Clocked In Today',
+    'staff_offday': 'Staff on Off-Day Today',
+    'staff_on_leave': 'Staff on Leave Today',
+    'staff_absent': 'Staff Absent Today'
+  };
+
+  // Listen for clicks on elements with the data-metric attribute
+  document.querySelectorAll('[data-metric^="staff_"], [data-metric="all_staff"]').forEach(button => {
+    button.addEventListener('click', function (e) {
+      e.preventDefault();
+      const metric = this.getAttribute('data-metric');
+      
+      // Set Modal Title Header
+      modalTitleText.textContent = metricTitles[metric] || 'Staff List';
+      
+      // Toggle Loader View
+      modalLoader.classList.remove('d-none');
+      modalStaffList.classList.add('d-none');
+      modalStaffList.innerHTML = '';
+      
+      staffModal.show();
+
+      // Fetch grouped staff payload matching metric criteria
+      fetch(`/api/staff_metrics?metric=${metric}`)
+        .then(response => response.json())
+        .then(data => {
+          modalLoader.classList.add('d-none');
+          modalStaffList.classList.remove('d-none');
+
+          if (data.length === 0) {
+            modalStaffList.innerHTML = `<li class="list-group-item text-muted text-center py-3 fs-7">No employees found in this criteria.</li>`;
+            return;
+          }
+
+          data.forEach(user => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center px-0 py-2.5';
+            
+            // Build Employee Info Template with secondary Action Endpoint
+            li.innerHTML = `
+              <div class="d-flex flex-column">
+                <span class="fw-semibold text-dark">${user.name}</span>
+                <small class="text-muted fs-7">${user.role || 'Staff Member'}</small>
+              </div>
+              <a href="/attendance_register?user_id=${user.id}" class="btn btn-sm btn-light border text-primary rounded-pill d-flex align-items-center gap-1 px-3 py-1 fs-7">
+                <i class="bi bi-clock-history"></i> View Log
+              </a>
+            `;
+            modalStaffList.appendChild(li);
+          });
+        })
+        .catch(err => {
+          modalLoader.classList.add('d-none');
+          modalStaffList.classList.remove('d-none');
+          modalStaffList.innerHTML = `<li class="list-group-item text-danger text-center py-3 fs-7">Error loading profiles. Try again.</li>`;
+        });
+    });
+  });
+});
+</script-->
+
+<!--script>
+document.addEventListener("DOMContentLoaded", function() {
+  // Select modal and safely escape any nesting container issues
+  const modalEl = document.getElementById("staffMetricModal");
+  if (modalEl) {
+    document.body.appendChild(modalEl);
+  }
+  
+  const staffModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  const staffTableBody = document.querySelector("#staffDetailsTable tbody");
+  const modalTitleText = document.getElementById("modalTitleText");
+
+  // Custom mapping for contextual headers
+  const metricTitles = {
+    'all_staff': 'All Registered Staff',
+    'staff_clocked_in': 'Staff Clocked In Today',
+    'staff_offday': 'Staff on Off-Day Today',
+    'staff_on_leave': 'Staff on Leave Today',
+    'staff_absent': 'Staff Absent Today'
+  };
+
+  // Intercept button metric actions seamlessly 
+  document.querySelectorAll("button[data-metric^='staff_'], button[data-metric='all_staff']").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const metric = btn.getAttribute("data-metric");
+      
+      // Dynamically set title text
+      if (modalTitleText) {
+        modalTitleText.textContent = metricTitles[metric] || 'Staff Details';
+      }
+
+      // Fetch personnel array metrics
+      const res = await fetch(`/api/staff_metrics?metric=${metric}`);
+      const data = await res.json();
+
+      // Flush prior rows and rebuild table layout cleanly
+      staffTableBody.innerHTML = "";
+      
+      if (data.length === 0) {
+        staffTableBody.innerHTML = `<tr><td colspan="4" class="text-muted text-center py-3 fs-7">No employees found in this criteria.</td></tr>`;
+      } else {
+        data.forEach((item, i) => {
+          staffTableBody.innerHTML += `
+            <tr>
+              <td>${i + 1}</td>
+              <td class="fw-semibold text-dark">${item.name}</td>
+              <td>${item.role || "Staff Member"}</td>
+              <td class="text-end">
+                <a href="/attendance_register?user_id=${item.id}" class="btn btn-sm btn-light border text-primary rounded-pill d-inline-flex align-items-center gap-1 px-3 py-1 fs-7">
+                  <i class="bi bi-clock-history"></i> View Log
+                </a>
+              </td>
+            </tr>`;
+        });
+      }
+      
+      // Fire modal sequence open trigger safely
+      staffModal.show();
+    });
+  });
+});
+</script-->
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  
+  // ==========================================
+  // SECTION A: OUTLET MODAL ENGINE
+  // ==========================================
+  const outletModalEl = document.getElementById("outletModal");
+  if (outletModalEl) document.body.appendChild(outletModalEl); 
+  const outletModal = bootstrap.Modal.getOrCreateInstance(outletModalEl);
+  const outletTableBody = document.querySelector("#outletDetailsTable tbody");
+
+  // Targets only standard metrics (omitting staff actions via markup validation)
+  document.querySelectorAll("button[data-metric]").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      const metric = btn.getAttribute("data-metric");
+      if (metric.startsWith("staff_") || metric === "all_staff") return;
+
+      const res = await fetch(`/outlets/details/${metric}`);
+      const data = await res.json();
+
+      if (outletTableBody) {
+        outletTableBody.innerHTML = "";
+        data.forEach((item, i) => {
+          outletTableBody.innerHTML += `
+            <tr>
+              <td>${i+1}</td>
+              <td>${item.outlet || item.outlet_name || "-"}</td>
+              <td>${item.user || item.primary_user || "-"}</td>
+              <td>${item.clock_in || item.clock_out || "-"}</td>
+              <td>
+                ${metric === "force_closure" ? `<button class="btn btn-sm btn-danger" onclick="forceClose(\${item.id}, this.closest('tr'))">Force Close</button>` : "-"}
+              </td>
+            </tr>`;
+        });
+      }
+      outletModal.show();
+    });
+  });
+
+  // ==========================================
+  // SECTION B: STAFF MODAL ENGINE (ISOLATED)
+  // ==========================================
+  const staffModalEl = document.getElementById("staffMetricModal");
+  if (staffModalEl) document.body.appendChild(staffModalEl);
+  const staffModal = bootstrap.Modal.getOrCreateInstance(staffModalEl);
+  
+  const staffTableBody = document.getElementById("staffTableBodyContainer");
+  const staffTitleText = document.getElementById("staffModalTitleText");
+
+  const staffMetricTitles = {
+    'all_staff': 'All Registered Staff',
+    'staff_clocked_in': 'Staff Clocked In Today',
+    'staff_offday': 'Staff on Off-Day Today',
+    'staff_on_leave': 'Staff on Leave Today',
+    'staff_absent': 'Staff Absent Today'
+  };
+
+  // Explicitly binds ONLY to staff triggers to stop metric leaking
+  document.querySelectorAll(".btn-staff-trigger").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      
+      const metric = btn.getAttribute("data-staff-metric");
+      console.log("FRONTEND DEBUG: Clicked staff metric ->", metric);
+      
+      if (staffTitleText) {
+        staffTitleText.textContent = staffMetricTitles[metric] || 'Staff Details';
+      }
+
+      // Query isolated staff API route directly
+      const response = await fetch('/api/staff_metrics?metric=' + metric);
+      const staffList = await response.json();
+      console.log("FRONTEND DEBUG: Roster payload array ->", staffList);
+
+      if (!staffTableBody) {
+        console.error("CRITICAL ERROR: Container selector #staffTableBodyContainer was not found.");
+        return;
+      }
+
+      // Reset prior strings cleanly
+      staffTableBody.innerHTML = "";
+
+      if (!staffList || staffList.length === 0) {
+        staffTableBody.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4 fs-7">No employees found matching this criteria today.</td></tr>';
+      } else {
+        let outputHtml = "";
+        
+        for (let i = 0; i < staffList.length; i++) {
+          const item = staffList[i];
+          const rowNum = i + 1;
+          
+          outputHtml += '<tr>' +
+            '<td class="ps-3">' + rowNum + '</td>' +
+            '<td class="fw-semibold text-dark">' + item.name + '</td>' +
+            '<td class="text-muted">' + item.role + '</td>' +
+            '<td class="text-end pe-4">' +
+              '<a href="/attendance_register?user_id=' + item.id + '" class="btn btn-sm btn-light border text-primary rounded-pill d-inline-flex align-items-center gap-1 px-3 py-1 fs-7">' +
+                '<i class="bi bi-clock-history"></i> View Log' +
+              '</a>' +
+            '</td>' +
+          '</tr>';
+        }
+        
+        staffTableBody.innerHTML = outputHtml;
+      }
+      
+      // Open modal view
+      staffModal.show();
+    });
+  });
+});
+
+async function forceClose(attendanceId, rowElement) {
+  const res = await fetch(`/attendance/force_close/${attendanceId}`, { method: "POST" });
+  const data = await res.json();
+  if (data.status === "success") {
+    rowElement.querySelector("td:last-child").innerHTML = "<span class='badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1'>Closed</span>";
+  } else {
+    alert("Failed to close record securely");
+  }
+}
+
+
+</script>
 
 <style>
 /* Compact card style */
