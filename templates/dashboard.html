@@ -156,6 +156,8 @@
   </div>
 </div>
 
+
+
 <!-- Standalone Staff Detail Modal View Container -->
 <div class="modal fade" id="staffMetricModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-top">
@@ -243,11 +245,6 @@
 
 
 
-
-
-
-
-
 <!--table class="table">
   <thead>
     <tr>
@@ -281,6 +278,11 @@
     {% endfor %}
   </tbody>
 </table-->
+
+
+
+
+
 
 
 </main>
@@ -990,14 +992,18 @@ document.addEventListener("DOMContentLoaded", function() {
         data.forEach((item, i) => {
           outletTableBody.innerHTML += `
             <tr>
-              <td>${i+1}</td>
-              <td>${item.outlet || item.outlet_name || "-"}</td>
-              <td>${item.user || item.primary_user || "-"}</td>
-              <td>${item.clock_in || item.clock_out || "-"}</td>
-              <td>
-                ${metric === "force_closure" ? `<button class="btn btn-sm btn-danger" onclick="forceClose(\${item.id}, this.closest('tr'))">Force Close</button>` : "-"}
-              </td>
-            </tr>`;
+            <td>${i+1}</td>
+            <td>${item.outlet || item.outlet_name || "-"}</td>
+            <td>${item.user || item.primary_user || "-"}</td>
+            <td>${item.clock_in || item.clock_out || "-"}</td>
+            <td>${item.current_user || "-"}</td>
+            <td>${item.latitude ? item.latitude + "," + item.longitude : "-"}</td>
+            <td>
+              ${metric === "force_closure" ? 
+                `<button class="btn btn-sm btn-danger" onclick="forceClose(${item.id}, this.closest('tr'))">Force Close</button>` 
+                : ""}
+            </td>
+          </tr>`;
         });
       }
       outletModal.show();
